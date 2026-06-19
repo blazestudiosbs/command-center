@@ -1,0 +1,25 @@
+{
+  "projects": [
+    {
+      "name": "Command Center",
+      "type": "infrastructure",
+      "priority": "high",
+      "status": "active",
+      "path": "/opt/command-center"
+    },
+    {
+      "name": "Mystica Nexus",
+      "type": "game",
+      "priority": "high",
+      "status": "active",
+      "path": ""
+    },
+    {
+      "name": "PandaPause",
+      "type": "app",
+      "priority": "medium",
+      "status": "active",
+      "path": ""
+    }
+  ]
+}
