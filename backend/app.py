@@ -242,6 +242,23 @@ def build_status():
     host_name = read_text("/host/etc/hostname", socket.gethostname())
 
     block_devices = get_block_devices()
+
+    try:
+        media_usage = psutil.disk_usage("/host/mnt/media")
+        media_disk = {
+            "name": "Media Drive",
+            "mountpoint": "/mnt/media",
+            "total_gb": round(media_usage.total / (1024**3), 2),
+            "used_percent": media_usage.percent,
+            "status": "mounted"
+        }
+    except Exception:
+        media_disk = {
+            "name": "Media Drive",
+            "mountpoint": "/mnt/media",
+            "status": "unavailable"
+        }
+
     network_devices = get_network_devices()
     docker_status = get_docker_status()
     projects = get_projects()
@@ -265,6 +282,7 @@ def build_status():
         "health_color": health_color,
         "health_score": score,
         "block_devices": block_devices,
+        "media_disk": media_disk,
         "network_devices": network_devices,
         "docker": docker_status,
         "projects": projects,
@@ -282,24 +300,8 @@ def build_status():
     if data["cpu_usage_percent"] < 25:
         recommendations.append("CPU load is low right now.")
 
-    disks = [d for d in block_devices if d.get("type") == "disk"]
-    unmounted_disks = []
-
-    for disk_device in disks:
-        children = disk_device.get("children", [])
-
-        if children:
-            mounted = any(child.get("mountpoint") for child in children)
-        else:
-            mounted = bool(disk_device.get("mountpoint"))
-
-        if not mounted:
-            unmounted_disks.append(disk_device)
-
-    if unmounted_disks:
-        recommendations.append(
-            "One or more physical disks appear unmounted. The 2TB drive may be available for Minecraft, backups, Plex media, or bulk storage."
-        )
+    if media_disk.get("status") != "mounted":
+        recommendations.append("Media drive is not mounted or not visible to Command Center.")
 
     if docker_status["available"]:
         recommendations.append(

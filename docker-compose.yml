@@ -8,6 +8,7 @@ services:
     env_file:
       - .env
     volumes:
+      - /mnt/media:/host/mnt/media:ro
       - ./config:/app/config:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
