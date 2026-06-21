@@ -18,6 +18,7 @@ client = OpenAI(
     timeout=30.0,
     max_retries=1,
 )
+
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 
@@ -46,6 +47,7 @@ def format_uptime(seconds: float) -> str:
     days = seconds // 86400
     hours = (seconds % 86400) // 3600
     minutes = (seconds % 3600) // 60
+
     if days > 0:
         return f"{days}d {hours}h {minutes}m"
     if hours > 0:
@@ -55,6 +57,7 @@ def format_uptime(seconds: float) -> str:
 
 def get_block_devices():
     output = run_cmd(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL"])
+
     try:
         data = json.loads(output)
         return data.get("blockdevices", [])
@@ -64,18 +67,22 @@ def get_block_devices():
 
 def get_projects():
     path = "/app/config/projects.json"
+
     try:
         with open(path, "r") as f:
             data = json.load(f)
+
         return data.get("projects", [])
     except Exception as e:
-        return [{
-            "name": "Projects config unavailable",
-            "type": "system",
-            "priority": "unknown",
-            "status": str(e),
-            "path": ""
-        }]
+        return [
+            {
+                "name": "Projects config unavailable",
+                "type": "system",
+                "priority": "unknown",
+                "status": str(e),
+                "path": "",
+            }
+        ]
 
 
 def get_network_devices():
@@ -84,6 +91,7 @@ def get_network_devices():
 
     for line in output.splitlines():
         parts = line.split()
+
         if not parts:
             continue
 
@@ -93,6 +101,7 @@ def get_network_devices():
         state = parts[-1]
 
         name = "Unknown Device"
+
         if ip.endswith(".1"):
             name = "Likely Router/Gateway"
         elif ip == "192.168.50.10":
@@ -105,13 +114,15 @@ def get_network_devices():
         except Exception:
             pass
 
-        devices.append({
-            "name": name,
-            "ip": ip,
-            "interface": dev,
-            "mac": mac,
-            "state": state
-        })
+        devices.append(
+            {
+                "name": name,
+                "ip": ip,
+                "interface": dev,
+                "mac": mac,
+                "state": state,
+            }
+        )
 
     return devices
 
@@ -120,6 +131,7 @@ def get_docker_status():
     try:
         client_docker = docker.from_env()
         containers = client_docker.containers.list(all=True)
+
         return {
             "available": True,
             "total": len(containers),
@@ -128,10 +140,10 @@ def get_docker_status():
                 {
                     "name": c.name,
                     "status": c.status,
-                    "image": c.image.tags[0] if c.image.tags else "unknown"
+                    "image": c.image.tags[0] if c.image.tags else "unknown",
                 }
                 for c in containers
-            ]
+            ],
         }
     except Exception as e:
         return {
@@ -139,7 +151,7 @@ def get_docker_status():
             "error": str(e),
             "total": 0,
             "running": 0,
-            "containers": []
+            "containers": [],
         }
 
 
@@ -185,6 +197,7 @@ def build_status():
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
     cpu_percent = psutil.cpu_percent(interval=1)
+
     host_name = read_text("/host/etc/hostname", socket.gethostname())
 
     block_devices = get_block_devices()
@@ -215,43 +228,53 @@ def build_status():
         "projects": projects,
     }
 
-    recs = []
+    recommendations = []
 
     if score >= 90:
-        recs.append("System health is strong. No urgent resource issues detected.")
+        recommendations.append("System health is strong. No urgent resource issues detected.")
 
     if data["memory_used_percent"] < 25:
-        recs.append("Memory headroom is excellent.")
+        recommendations.append("Memory headroom is excellent.")
 
     if data["cpu_usage_percent"] < 25:
-        recs.append("CPU load is low right now.")
+        recommendations.append("CPU load is low right now.")
 
     disks = [d for d in block_devices if d.get("type") == "disk"]
     unmounted_disks = []
-    for d in disks:
-        children = d.get("children", [])
+
+    for disk_device in disks:
+        children = disk_device.get("children", [])
+
         if children:
-            mounted = any(c.get("mountpoint") for c in children)
+            mounted = any(child.get("mountpoint") for child in children)
         else:
-            mounted = bool(d.get("mountpoint"))
+            mounted = bool(disk_device.get("mountpoint"))
+
         if not mounted:
-            unmounted_disks.append(d)
+            unmounted_disks.append(disk_device)
 
     if unmounted_disks:
-        recs.append("One or more physical disks appear unmounted. The 2TB drive may be available for Minecraft, backups, Plex media, or bulk storage.")
+        recommendations.append(
+            "One or more physical disks appear unmounted. The 2TB drive may be available for Minecraft, backups, Plex media, or bulk storage."
+        )
 
     if docker_status["available"]:
-        recs.append(f"Docker is online with {docker_status['running']} running container(s).")
+        recommendations.append(
+            f"Docker is online with {docker_status['running']} running container(s)."
+        )
 
     if network_devices:
-        recs.append(f"{len(network_devices)} network neighbor(s) detected.")
+        recommendations.append(f"{len(network_devices)} network neighbor(s) detected.")
     else:
-        recs.append("No neighboring network devices detected yet. This may populate after more LAN traffic.")
+        recommendations.append(
+            "No neighboring network devices detected yet. This may populate after more LAN traffic."
+        )
 
     if projects:
-        recs.append(f"{len(projects)} configured project(s) detected.")
+        recommendations.append(f"{len(projects)} configured project(s) detected.")
 
-    data["recommendations"] = recs
+    data["recommendations"] = recommendations
+
     return data
 
 
@@ -262,40 +285,64 @@ def status():
 
 @app.post("/api/ask")
 def ask(req: AskRequest):
-    q = req.question.lower().strip()
+    question = req.question.lower().strip()
     data = build_status()
 
-    if "score" in q:
-        return {"answer": f"Server health score is {data['health_score']}/100. Status: {data['health']}."}
+    if "score" in question:
+        return {
+            "answer": f"Server health score is {data['health_score']}/100. Status: {data['health']}."
+        }
 
-    if "healthy" in q or "health" in q:
-        return {"answer": f"System health is {data['health']} with a score of {data['health_score']}/100."}
+    if "healthy" in question or "health" in question:
+        return {
+            "answer": f"System health is {data['health']} with a score of {data['health_score']}/100."
+        }
 
-    if "memory" in q or "ram" in q:
-        return {"answer": f"Memory usage is {data['memory_used_percent']}% of {data['memory_total_gb']} GB."}
+    if "memory" in question or "ram" in question:
+        return {
+            "answer": f"Memory usage is {data['memory_used_percent']}% of {data['memory_total_gb']} GB."
+        }
 
-    if "cpu" in q:
-        return {"answer": f"CPU usage is {data['cpu_usage_percent']}% across {data['cpu_threads']} threads."}
+    if "cpu" in question:
+        return {
+            "answer": f"CPU usage is {data['cpu_usage_percent']}% across {data['cpu_threads']} threads."
+        }
 
-    if "disk" in q or "storage" in q:
+    if "disk" in question or "storage" in question:
         disks = [d for d in data["block_devices"] if d.get("type") == "disk"]
-        disk_text = ", ".join([f"{d.get('name')} {d.get('size')}" for d in disks]) or "No disks found."
-        return {"answer": f"Main disk usage is {data['disk_used_percent']}% of {data['disk_total_gb']} GB. Physical disks detected: {disk_text}"}
+        disk_text = ", ".join([f"{d.get('name')} {d.get('size')}" for d in disks])
+        return {
+            "answer": f"Main disk usage is {data['disk_used_percent']}% of {data['disk_total_gb']} GB. Physical disks detected: {disk_text or 'No disks found.'}"
+        }
 
-    if "network" in q or "devices" in q:
-        return {"answer": f"I can currently see {len(data['network_devices'])} neighboring network device(s)."}
+    if "network" in question or "devices" in question:
+        return {
+            "answer": f"I can currently see {len(data['network_devices'])} neighboring network device(s)."
+        }
 
-    if "docker" in q or "container" in q:
-        d = data["docker"]
-        if d["available"]:
-            return {"answer": f"Docker is online. {d['running']} of {d['total']} container(s) are running."}
-        return {"answer": "Docker status is unavailable: " + d.get("error", "unknown error")}
+    if "docker" in question or "container" in question:
+        docker_status = data["docker"]
 
-    if "project" in q:
+        if docker_status["available"]:
+            return {
+                "answer": f"Docker is online. {docker_status['running']} of {docker_status['total']} container(s) are running."
+            }
+
+        return {
+            "answer": "Docker status is unavailable: "
+            + docker_status.get("error", "unknown error")
+        }
+
+    if "project" in question:
         names = ", ".join([p.get("name", "Unnamed") for p in data["projects"]])
         return {"answer": f"Configured projects: {names}" if names else "No projects configured."}
 
-    if "recommend" in q or "suggest" in q or "next" in q or "analyze" in q:
+    if (
+        "recommend" in question
+        or "suggest" in question
+        or "next" in question
+        or "analyze" in question
+    ):
         return {"answer": " ".join(data["recommendations"])}
 
     return {
@@ -334,9 +381,54 @@ Server status JSON:
             input=prompt,
             max_output_tokens=400,
         )
+
         return {"analysis": response.output_text}
     except Exception as e:
         return {"analysis": f"OpenAI analysis failed: {str(e)}"}
+
+
+@app.post("/api/briefing")
+def briefing():
+    data = build_status()
+
+    if not os.getenv("OPENAI_API_KEY"):
+        return {"briefing": "OpenAI API key is not configured yet."}
+
+    briefing_payload = {
+        "system": {
+            "health": data.get("health"),
+            "health_score": data.get("health_score"),
+            "recommendations": data.get("recommendations", []),
+        },
+        "projects": data.get("projects", []),
+    }
+
+    prompt = f"""
+You are Command Center, a read-only home operations and project planning assistant.
+
+Create a concise daily briefing from this JSON.
+
+Rules:
+- Keep it under 300 words.
+- Prioritize projects by priority.
+- Mention infrastructure concerns only if they matter.
+- Be practical, not motivational fluff.
+- End with one recommended focus for today.
+
+Daily briefing JSON:
+{json.dumps(briefing_payload, indent=2)}
+"""
+
+    try:
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            input=prompt,
+            max_output_tokens=500,
+        )
+
+        return {"briefing": response.output_text}
+    except Exception as e:
+        return {"briefing": f"Daily briefing failed: {str(e)}"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -346,155 +438,13 @@ def home():
 <html>
 <head>
     <title>Command Center V0</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #10131a; color: #f1f5f9; padding: 32px; }
-        h1 { margin-bottom: 4px; }
-        .subtitle { color: #94a3b8; margin-bottom: 24px; }
-        button { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; font-weight: bold; margin-right: 8px; }
-        input { padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #020617; color: #f1f5f9; width: min(700px, 80%); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; }
-        .label { color: #94a3b8; font-size: 13px; }
-        .value { font-size: 22px; margin-top: 6px; }
-        .green { color: #22c55e; }
-        .yellow { color: #facc15; }
-        .red { color: #ef4444; }
-        .panel { background: #020617; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-top: 24px; }
-        li { margin-bottom: 8px; }
-        pre { background: #020617; border: 1px solid #334155; border-radius: 12px; padding: 16px; overflow-x: auto; margin-top: 24px; display: none; }
-        .small { color: #94a3b8; font-size: 13px; }
-        .answer { margin-top: 12px; font-size: 18px; color: #dbeafe; white-space: pre-wrap; }
-    </style>
 </head>
 <body>
-    <h1>Command Center V0</h1>
-    <div class="subtitle">System observer online.</div>
-
-    <button onclick="loadStatus()">Refresh Scan</button>
-    <button onclick="toggleRaw()">Toggle Raw Data</button>
-    <button onclick="analyzeStatus()">Analyze Status</button>
-
-    <div class="grid" id="cards"></div>
-
-    <div class="panel">
-        <h2>Ask Command Center</h2>
-        <input id="question" placeholder="Try: Analyze status. What projects do I have? What disks do I have?">
-        <button onclick="ask()">Ask</button>
-        <div class="answer" id="answer"></div>
-    </div>
-
-    <div class="panel">
-        <h2>AI Analysis</h2>
-        <div class="answer" id="analysis">Click Analyze Status for a plain-English report.</div>
-    </div>
-
-    <div class="panel">
-        <h2>Recommendations</h2>
-        <ul id="recommendations"></ul>
-    </div>
-
-    <div class="panel">
-        <h2>Projects</h2>
-        <ul id="projects"></ul>
-    </div>
-
-    <div class="panel">
-        <h2>Network Devices</h2>
-        <ul id="network"></ul>
-    </div>
-
-    <div class="panel">
-        <h2>Docker Containers</h2>
-        <ul id="docker"></ul>
-    </div>
-
-    <div class="panel">
-        <h2>Physical Storage</h2>
-        <ul id="storage"></ul>
-    </div>
-
-    <pre id="raw"></pre>
-
-    <script>
-    function badgeClass(color) {
-        if (color === "green") return "green";
-        if (color === "yellow") return "yellow";
-        if (color === "red") return "red";
-        return "";
-    }
-
-    async function loadStatus() {
-        const response = await fetch('/api/status');
-        const data = await response.json();
-
-        const cards = [
-            ["Health", `<span class="${badgeClass(data.health_color)}">${data.health}</span>`],
-            ["Health Score", data.health_score + "/100"],
-            ["Hostname", data.hostname],
-            ["CPU Threads", data.cpu_threads],
-            ["CPU Usage", data.cpu_usage_percent + "%"],
-            ["Memory", data.memory_total_gb + " GB"],
-            ["Memory Used", data.memory_used_percent + "%"],
-            ["Disk", data.disk_total_gb + " GB"],
-            ["Disk Used", data.disk_used_percent + "%"],
-            ["Projects", data.projects.length],
-            ["Network Devices", data.network_devices.length],
-            ["Docker Running", data.docker.running + " / " + data.docker.total],
-            ["Uptime", data.uptime]
-        ];
-
-        document.getElementById('cards').innerHTML = cards.map(card => `
-            <div class="card"><div class="label">${card[0]}</div><div class="value">${card[1]}</div></div>
-        `).join('');
-
-        document.getElementById('recommendations').innerHTML =
-            data.recommendations.map(r => `<li>${r}</li>`).join('');
-
-        document.getElementById('projects').innerHTML =
-            data.projects.map(p =>
-                `<li><strong>${p.name}</strong> <span class="small">${p.type} | priority: ${p.priority} | ${p.status}</span></li>`
-            ).join('') || "<li>No projects configured.</li>";
-
-        document.getElementById('network').innerHTML =
-            data.network_devices.map(d => `<li><strong>${d.name}</strong> <span class="small">${d.ip} | ${d.mac} | ${d.interface} | ${d.state}</span></li>`).join('') || "<li>No devices detected yet.</li>";
-
-        document.getElementById('docker').innerHTML =
-            data.docker.containers.map(c => `<li><strong>${c.name}</strong> <span class="small">${c.status} | ${c.image}</span></li>`).join('') || "<li>No containers detected.</li>";
-
-        document.getElementById('storage').innerHTML =
-            data.block_devices.map(d => `<li><strong>${d.name}</strong> <span class="small">${d.size} | ${d.type} | ${d.model || "unknown model"}</span></li>`).join('');
-
-        document.getElementById('raw').innerText = JSON.stringify(data, null, 2);
-    }
-
-    async function ask() {
-        const question = document.getElementById('question').value;
-        const response = await fetch('/api/ask', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({question})
-        });
-        const data = await response.json();
-        document.getElementById('answer').innerText = data.answer;
-    }
-
-    async function analyzeStatus() {
-        document.getElementById('analysis').innerText = "Analyzing current status...";
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-        const data = await response.json();
-        document.getElementById('analysis').innerText = data.analysis;
-    }
-
-    function toggleRaw() {
-        const raw = document.getElementById('raw');
-        raw.style.display = raw.style.display === 'none' ? 'block' : 'none';
-    }
-
-    loadStatus();
-    </script>
+    <h1>Command Center API</h1>
+    <p>Backend is online.</p>
+    <ul>
+        <li><a href="/api/status">/api/status</a></li>
+    </ul>
 </body>
 </html>
 """

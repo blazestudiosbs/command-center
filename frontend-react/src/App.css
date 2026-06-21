@@ -1,0 +1,42 @@
+body {
+  margin: 0;
+  background: #10131a;
+  color: #f1f5f9;
+  font-family: Arial, sans-serif;
+}
+
+.page {
+  padding: 32px;
+}
+
+h1 {
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  color: #94a3b8;
+  margin-bottom: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.label {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.value {
+  font-size: 22px;
+  margin-top: 6px;
+}

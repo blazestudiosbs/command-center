@@ -1,0 +1,53 @@
+{
+  "name": "frontend-react",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.18.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "vite": "^8.0.12"
+  }
+  {
+  "projects": [
+    {
+      "name": "Mystica Nexus",
+      "priority": "high",
+      "status": "active",
+      "goal": "Steam demo",
+      "next_steps": [
+        "Finish React migration",
+        "Improve project awareness",
+        "Continue demo polish"
+      ]
+    },
+    {
+      "name": "PandaPause",
+      "priority": "medium",
+      "status": "maintenance",
+      "goal": "Grow tester base",
+      "next_steps": [
+        "Gather feedback",
+        "Improve onboarding"
+      ]
+    }
+  ]
+}
+}
