@@ -9,6 +9,13 @@ body {
   padding: 32px;
 }
 
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
 h1 {
   margin-bottom: 4px;
 }
@@ -18,20 +25,34 @@ h1 {
   margin-bottom: 24px;
 }
 
+button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+  font-weight: bold;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
-.card {
+.card,
+.panel {
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 12px;
   padding: 16px;
 }
 
-.label {
+.panel {
+  margin-top: 24px;
+}
+
+.label,
+.row span {
   color: #94a3b8;
   font-size: 13px;
 }
@@ -39,4 +60,22 @@ h1 {
 .value {
   font-size: 22px;
   margin-top: 6px;
+}
+
+.answer {
+  white-space: pre-wrap;
+  color: #dbeafe;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 8px;
 }
