@@ -194,7 +194,6 @@ def get_health(score):
     
 def get_service_status():
     services = []
-
     docker_status = get_docker_status()
 
     services.append({
@@ -209,13 +208,10 @@ def get_service_status():
         "detail": "API key present" if bool(os.getenv("OPENAI_API_KEY")) else "API key missing"
     })
 
-    tailscale_output = run_cmd(["tailscale", "status"])
-    tailscale_online = "command-center" in tailscale_output or "100." in tailscale_output
-
     services.append({
         "name": "Tailscale",
-        "status": "online" if tailscale_online else "unknown",
-        "detail": "Connected" if tailscale_online else "Status unavailable"
+        "status": "unknown",
+        "detail": "Status unavailable from container"
     })
 
     services.append({
@@ -224,7 +220,18 @@ def get_service_status():
         "detail": "Serving API on port 8787"
     })
 
-    return services    
+    plex_running = any(
+        c.get("name") == "plex" and c.get("status") == "running"
+        for c in docker_status.get("containers", [])
+    )
+
+    services.append({
+        "name": "Plex",
+        "status": "online" if plex_running else "offline",
+        "detail": "Media server"
+    })
+
+    return services
 
 
 def build_status():

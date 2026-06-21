@@ -18,3 +18,10 @@ services:
       - COMMAND_CENTER_NETWORK=192.168.50.0/24
       - COMMAND_CENTER_INTERFACE=enp3s0
     restart: unless-stopped
+  command-center-ui:
+    build:
+      context: .
+      dockerfile: frontend-react/Dockerfile
+    container_name: command-center-ui
+    network_mode: host
+    restart: unless-stopped
