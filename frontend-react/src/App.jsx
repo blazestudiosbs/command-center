@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+
 import { getAnalysis, getBriefing, getStatus } from "./services/api";
 import StatCard from "./components/StatCard";
-import Panel from "./components/Panel";
+import BriefingPanel from "./components/BriefingPanel";
+import AnalysisPanel from "./components/AnalysisPanel";
+import ProjectPanel from "./components/ProjectPanel";
+import DockerPanel from "./components/DockerPanel";
+import NetworkPanel from "./components/NetworkPanel";
 
 function App() {
   const [status, setStatus] = useState(null);
@@ -29,17 +34,23 @@ function App() {
 
   useEffect(() => {
     loadStatus();
+
+    const timer = setInterval(loadStatus, 30000);
+    return () => clearInterval(timer);
   }, []);
 
-  if (!status) return <main className="page">Loading Command Center...</main>;
+  if (!status) {
+    return <main className="page">Loading Command Center...</main>;
+  }
 
   return (
     <main className="page">
       <header className="header">
         <div>
           <h1>Command Center</h1>
-          <p className="subtitle">Brain online. Watching the machine-room lanterns.</p>
+          <p className="subtitle">Brain online. System observer active.</p>
         </div>
+
         <button onClick={loadStatus}>Refresh</button>
       </header>
 
@@ -49,51 +60,27 @@ function App() {
         <StatCard label="CPU" value={`${status.cpu_usage_percent}%`} />
         <StatCard label="Memory" value={`${status.memory_used_percent}%`} />
         <StatCard label="Disk" value={`${status.disk_used_percent}%`} />
+        <StatCard label="Projects" value={status.projects.length} />
+        <StatCard label="Docker" value={`${status.docker.running}/${status.docker.total}`} />
+        <StatCard label="Network" value={status.network_devices.length} />
         <StatCard label="Uptime" value={status.uptime} />
       </section>
 
-      <Panel title="Daily Briefing">
-        <button onClick={runBriefing}>Generate Briefing</button>
-        <p className="answer">{loading === "briefing" ? "Generating briefing..." : briefing}</p>
-      </Panel>
+      <BriefingPanel
+        briefing={briefing}
+        loading={loading === "briefing"}
+        onGenerate={runBriefing}
+      />
 
-      <Panel title="AI Analysis">
-        <button onClick={runAnalysis}>Analyze Status</button>
-        <p className="answer">{loading === "analysis" ? "Analyzing status..." : analysis}</p>
-      </Panel>
+      <AnalysisPanel
+        analysis={analysis}
+        loading={loading === "analysis"}
+        onAnalyze={runAnalysis}
+      />
 
-      <Panel title="Projects">
-        <div className="list">
-          {status.projects.map((p) => (
-            <div className="row" key={p.name}>
-              <strong>{p.name}</strong>
-              <span>{p.type} | {p.priority} | {p.status}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel title="Docker">
-        <div className="list">
-          {status.docker.containers.map((c) => (
-            <div className="row" key={c.name}>
-              <strong>{c.name}</strong>
-              <span>{c.status} | {c.image}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel title="Network">
-        <div className="list">
-          {status.network_devices.map((d) => (
-            <div className="row" key={d.ip}>
-              <strong>{d.name}</strong>
-              <span>{d.ip} | {d.state}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
+      <ProjectPanel projects={status.projects} />
+      <DockerPanel docker={status.docker} />
+      <NetworkPanel devices={status.network_devices} />
     </main>
   );
 }
