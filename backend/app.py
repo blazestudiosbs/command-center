@@ -191,6 +191,40 @@ def get_health(score):
     if score >= 70:
         return "Warning", "yellow"
     return "Critical", "red"
+    
+def get_service_status():
+    services = []
+
+    docker_status = get_docker_status()
+
+    services.append({
+        "name": "Docker",
+        "status": "online" if docker_status.get("available") else "offline",
+        "detail": f"{docker_status.get('running', 0)} running container(s)"
+    })
+
+    services.append({
+        "name": "OpenAI",
+        "status": "configured" if bool(os.getenv("OPENAI_API_KEY")) else "missing",
+        "detail": "API key present" if bool(os.getenv("OPENAI_API_KEY")) else "API key missing"
+    })
+
+    tailscale_output = run_cmd(["tailscale", "status"])
+    tailscale_online = "command-center" in tailscale_output or "100." in tailscale_output
+
+    services.append({
+        "name": "Tailscale",
+        "status": "online" if tailscale_online else "unknown",
+        "detail": "Connected" if tailscale_online else "Status unavailable"
+    })
+
+    services.append({
+        "name": "FastAPI Backend",
+        "status": "online",
+        "detail": "Serving API on port 8787"
+    })
+
+    return services    
 
 
 def build_status():
@@ -204,6 +238,7 @@ def build_status():
     network_devices = get_network_devices()
     docker_status = get_docker_status()
     projects = get_projects()
+    services = get_service_status()
 
     score = get_health_score(cpu_percent, memory.percent, disk.percent, docker_status)
     health, health_color = get_health(score)
@@ -226,6 +261,7 @@ def build_status():
         "network_devices": network_devices,
         "docker": docker_status,
         "projects": projects,
+        "services": services,
     }
 
     recommendations = []
