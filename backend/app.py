@@ -85,6 +85,43 @@ def get_projects():
         ]
 
 
+
+def get_router_health():
+    router_ip = os.getenv("ROUTER_HOST", "192.168.50.1")
+
+    ping_output = run_cmd(["ping", "-c", "3", router_ip])
+    router_online = "0% packet loss" in ping_output
+
+    latency_ms = None
+    for line in ping_output.splitlines():
+        if "rtt min/avg/max" in line:
+            try:
+                latency_ms = round(float(line.split("=")[1].split("/")[1]), 2)
+            except Exception:
+                latency_ms = None
+
+    http_output = run_cmd(["curl", "-I", "--max-time", "3", f"http://{router_ip}"])
+    web_online = "200 OK" in http_output or "HTTP/" in http_output
+
+    internet_ping = run_cmd(["ping", "-c", "2", "1.1.1.1"])
+    internet_online = "0% packet loss" in internet_ping
+
+    dns_test = run_cmd(["getent", "hosts", "google.com"])
+    dns_online = bool(dns_test.strip())
+
+    return {
+        "name": "ASUS Router",
+        "host": router_ip,
+        "router_online": router_online,
+        "web_admin_online": web_online,
+        "internet_online": internet_online,
+        "dns_online": dns_online,
+        "latency_ms": latency_ms,
+        "status": "online" if router_online and internet_online and dns_online else "warning"
+    }
+
+
+
 def get_network_devices():
     output = run_cmd(["ip", "neigh"])
     devices = []
@@ -260,6 +297,7 @@ def build_status():
         }
 
     network_devices = get_network_devices()
+    router_health = get_router_health()
     docker_status = get_docker_status()
     projects = get_projects()
     services = get_service_status()
@@ -284,6 +322,7 @@ def build_status():
         "block_devices": block_devices,
         "media_disk": media_disk,
         "network_devices": network_devices,
+        "router_health": router_health,
         "docker": docker_status,
         "projects": projects,
         "services": services,
