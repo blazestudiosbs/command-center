@@ -9,6 +9,7 @@ import ProjectPanel from "./components/ProjectPanel";
 import DockerPanel from "./components/DockerPanel";
 import NetworkPanel from "./components/NetworkPanel";
 import ServicePanel from "./components/ServicePanel";
+import RouterPanel from "./components/RouterPanel";
 
 function App() {
   const [status, setStatus] = useState(null);
@@ -82,6 +83,7 @@ function App() {
       <ServicePanel services={services} />
       <DockerPanel docker={docker} />
       <NetworkPanel devices={network} />
+      <RouterPanel router={status.router_health} />
     </main>
   );
 }
