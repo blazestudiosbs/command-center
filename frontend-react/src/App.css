@@ -1,54 +1,120 @@
 body {
   margin: 0;
-  background: #10131a;
-  color: #f1f5f9;
-  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: Inter, Arial, sans-serif;
 }
 
-.page {
-  padding: 32px;
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
 }
 
-.header {
+.sidebar {
+  background: #111827;
+  border-right: 1px solid #1f2937;
   display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  padding: 28px 24px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow: auto;
+}
+
+.sidebar-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-nav li {
+  margin: 0;
+}
+
+.sidebar-link {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  text-align: left;
+  padding: 14px 24px;
+  display: block;
+  cursor: pointer;
+  font-size: 0.96rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+  background: #1f2937;
+  color: #f8fafc;
+}
+
+.sidebar-link.active {
+  border-left: 4px solid #8b5cf6;
+}
+
+.main-content {
+  padding: 24px;
+  background: #0f172a;
+}
+
+.page-content {
+  display: grid;
+  gap: 24px;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
 }
 
-h1 {
-  margin-bottom: 4px;
-}
-
-.subtitle {
+.page-subtitle {
   color: #94a3b8;
-  margin-bottom: 24px;
+  margin-top: 6px;
 }
 
-button {
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 0;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.grid {
+.dashboard-grid,
+.workspace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
-.card,
-.panel {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 16px;
+.dashboard-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.panel {
-  margin-top: 24px;
+.workspace-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workspace-column {
+  display: grid;
+  gap: 16px;
+}
+
+.panel,
+.card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.panel h2 {
+  margin-top: 0;
 }
 
 .label,
@@ -57,25 +123,256 @@ button {
   font-size: 13px;
 }
 
-.value {
-  font-size: 22px;
-  margin-top: 6px;
-}
-
 .answer {
   white-space: pre-wrap;
-  color: #dbeafe;
+  color: #e2e8f0;
 }
 
 .list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #334155;
-  padding-bottom: 8px;
+  border-bottom: 1px solid #1f2937;
+  padding-bottom: 10px;
+}
+
+.panel-actions,
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.inline-form input {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-width: 220px;
+}
+
+button {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: #2563eb;
+  color: #f8fafc;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.status-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.minecraft-page .status-card {
+  min-height: 72px;
+}
+
+.minecraft-page .status-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.25rem;
+}
+
+.minecraft-page .status-card.online {
+  border-color: #22c55e;
+}
+
+.minecraft-page .status-card.offline {
+  border-color: #64748b;
+}
+
+.minecraft-status-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.minecraft-status-header > div {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  min-width: 130px;
+  padding: 12px 14px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.status-badge.online {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.status-badge.offline {
+  background: rgba(100, 116, 139, 0.2);
+  color: #cbd5e1;
+}
+
+.panel-fullwidth {
+  min-width: 0;
+}
+
+.player-list-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.player-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #1f2937;
+  padding: 10px 0;
+}
+
+.player-row-name {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.player-row-actions,
+.server-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.terminal-console {
+  display: grid;
+  gap: 12px;
+}
+
+.console-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.console-error,
+.action-result.failure {
+  color: #fecaca;
+}
+
+.console-output {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  color: #dbeafe;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-height: 460px;
+  min-height: 280px;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+
+.log-line {
+  border-left: 3px solid transparent;
+  padding: 1px 0 1px 8px;
+}
+
+.log-line.muted {
+  color: #64748b;
+}
+
+.log-error {
+  border-left-color: #ef4444;
+  color: #fecaca;
+}
+
+.log-warn,
+.log-performance {
+  border-left-color: #f59e0b;
+  color: #fde68a;
+}
+
+.log-join {
+  border-left-color: #22c55e;
+  color: #bbf7d0;
+}
+
+.log-leave {
+  border-left-color: #38bdf8;
+  color: #bae6fd;
+}
+
+.console-command {
+  margin-top: 0;
+}
+
+.console-command input {
+  flex: 1;
+  min-width: min(420px, 100%);
+}
+
+.action-result {
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}
+
+.action-result.running {
+  color: #bfdbfe;
+}
+
+.action-result.success {
+  color: #bbf7d0;
+}
+
+@media (max-width: 640px) {
+  .player-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .minecraft-status-header > div {
+    flex: 1 1 100%;
+  }
 }

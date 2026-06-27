@@ -1,90 +1,48 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./App.css";
+import Sidebar from "./components/Sidebar";
+import DashboardPage from "./pages/Dashboard";
+import ProjectsPage from "./pages/Projects";
+import InfrastructurePage from "./pages/Infrastructure";
+import MinecraftPage from "./pages/Minecraft";
+import PlexPage from "./pages/Plex";
+import DevelopmentPage from "./pages/Development";
+import AutomationPage from "./pages/Automation";
+import SettingsPage from "./pages/Settings";
 
-import { getAnalysis, getBriefing, getStatus } from "./services/api";
-import StatCard from "./components/StatCard";
-import BriefingPanel from "./components/BriefingPanel";
-import AnalysisPanel from "./components/AnalysisPanel";
-import ProjectPanel from "./components/ProjectPanel";
-import DockerPanel from "./components/DockerPanel";
-import NetworkPanel from "./components/NetworkPanel";
-import ServicePanel from "./components/ServicePanel";
-import RouterPanel from "./components/RouterPanel";
+const navItems = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "projects", label: "Projects" },
+  { id: "infrastructure", label: "Infrastructure" },
+  { id: "minecraft", label: "Minecraft" },
+  { id: "plex", label: "Plex" },
+  { id: "development", label: "Development" },
+  { id: "automation", label: "Automation" },
+  { id: "settings", label: "Settings" },
+];
+
+const pageMap = {
+  dashboard: DashboardPage,
+  projects: ProjectsPage,
+  infrastructure: InfrastructurePage,
+  minecraft: MinecraftPage,
+  plex: PlexPage,
+  development: DevelopmentPage,
+  automation: AutomationPage,
+  settings: SettingsPage,
+};
 
 function App() {
-  const [status, setStatus] = useState(null);
-  const [analysis, setAnalysis] = useState("");
-  const [briefing, setBriefing] = useState("");
-  const [loading, setLoading] = useState("");
-  const [error, setError] = useState("");
-
-  async function loadStatus() {
-    try {
-      const data = await getStatus();
-      setStatus(data);
-      setError("");
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function runAnalysis() {
-    setLoading("analysis");
-    setAnalysis(await getAnalysis());
-    setLoading("");
-  }
-
-  async function runBriefing() {
-    setLoading("briefing");
-    setBriefing(await getBriefing());
-    setLoading("");
-  }
-
-  useEffect(() => {
-    loadStatus();
-    const timer = setInterval(loadStatus, 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  if (error) return <main className="page">Error: {error}</main>;
-  if (!status) return <main className="page">Loading Command Center...</main>;
-
-  const services = status.services ?? [];
-  const projects = status.projects ?? [];
-  const docker = status.docker ?? { running: 0, total: 0, containers: [] };
-  const network = status.network_devices ?? [];
+  const [activePage, setActivePage] = useState("dashboard");
+  const ActivePage = pageMap[activePage] ?? DashboardPage;
 
   return (
-    <main className="page">
-      <header className="header">
-        <div>
-          <h1>Command Center</h1>
-          <p className="subtitle">Brain online. System observer active.</p>
-        </div>
-        <button onClick={loadStatus}>Refresh</button>
-      </header>
-
-      <section className="grid">
-        <StatCard label="Health" value={status.health ?? "unknown"} />
-        <StatCard label="Health Score" value={`${status.health_score ?? 0}/100`} />
-        <StatCard label="CPU" value={`${status.cpu_usage_percent ?? 0}%`} />
-        <StatCard label="Memory" value={`${status.memory_used_percent ?? 0}%`} />
-        <StatCard label="Disk" value={`${status.disk_used_percent ?? 0}%`} />
-        <StatCard label="Projects" value={projects.length} />
-        <StatCard label="Services" value={services.length} />
-        <StatCard label="Docker" value={`${docker.running}/${docker.total}`} />
-        <StatCard label="Network" value={network.length} />
-        <StatCard label="Uptime" value={status.uptime ?? "unknown"} />
-      </section>
-
-      <BriefingPanel briefing={briefing} loading={loading === "briefing"} onGenerate={runBriefing} />
-      <AnalysisPanel analysis={analysis} loading={loading === "analysis"} onAnalyze={runAnalysis} />
-      <ProjectPanel projects={projects} />
-      <ServicePanel services={services} />
-      <DockerPanel docker={docker} />
-      <NetworkPanel devices={network} />
-      <RouterPanel router={status.router_health} />
-    </main>
+    <div className="app-shell">
+      <Sidebar items={navItems} active={activePage} onSelect={setActivePage} />
+      <main className="main-content">
+        <ActivePage />
+      </main>
+    </div>
   );
 }
 

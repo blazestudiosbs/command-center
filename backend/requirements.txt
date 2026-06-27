@@ -3,3 +3,4 @@ uvicorn
 psutil
 docker
 openai
+requests

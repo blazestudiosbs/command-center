@@ -10,6 +10,9 @@ import psutil
 import socket
 import subprocess
 import time
+from datetime import datetime
+
+from services import minecraft_service
 
 app = FastAPI(title="Command Center V0")
 
@@ -40,6 +43,41 @@ def run_cmd(cmd):
         return result.stdout.strip()
     except Exception as e:
         return str(e)
+
+
+def send_discord_alert(title: str, message: str, severity: str = "info"):
+    webhook = os.getenv("DISCORD_WEBHOOK")
+
+    if not webhook:
+        return {
+            "sent": False,
+            "error": "DISCORD_WEBHOOK is not configured."
+        }
+
+    icon = {
+        "info": "ℹ️",
+        "warning": "⚠️",
+        "critical": "🚨",
+        "success": "✅"
+    }.get(severity, "ℹ️")
+
+    payload = {
+        "content": f"{icon} **Command Center Alert**\n\n**{title}**\n{message}"
+    }
+
+    try:
+        import requests
+        response = requests.post(webhook, json=payload, timeout=10)
+        return {
+            "sent": response.status_code in [200, 204],
+            "status_code": response.status_code,
+            "response": response.text
+        }
+    except Exception as e:
+        return {
+            "sent": False,
+            "error": str(e)
+        }
 
 
 def format_uptime(seconds: float) -> str:
@@ -433,6 +471,76 @@ def ask(req: AskRequest):
         "answer": "I can answer basic questions about health, score, CPU, memory, disk, Docker, network devices, projects, and recommendations."
     }
 
+
+
+
+
+
+class MinecraftCommand(BaseModel):
+    command: str
+
+
+@app.get("/api/minecraft/status")
+def minecraft_status():
+    return minecraft_service.get_status()
+
+
+@app.get("/api/minecraft/logs")
+def minecraft_logs(tail: int = 120):
+    return minecraft_service.get_logs(tail)
+
+
+@app.post("/api/minecraft/command")
+def minecraft_command(request: MinecraftCommand):
+    return minecraft_service.command(request.command)
+
+
+@app.post("/api/minecraft/save")
+def minecraft_save():
+    return minecraft_service.save_world()
+
+
+@app.post("/api/minecraft/start")
+def minecraft_start():
+    return minecraft_service.container_action("start")
+
+
+@app.post("/api/minecraft/stop")
+def minecraft_stop():
+    return minecraft_service.container_action("stop")
+
+
+@app.post("/api/minecraft/restart")
+def minecraft_restart():
+    return minecraft_service.container_action("restart")
+
+
+@app.post("/api/minecraft/op")
+def minecraft_op(player: str):
+    return minecraft_service.op_player(player)
+
+
+@app.post("/api/minecraft/deop")
+def minecraft_deop(player: str):
+    return minecraft_service.deop_player(player)
+
+
+@app.post("/api/minecraft/say")
+def minecraft_say(message: str):
+    return minecraft_service.say(message)
+
+
+@app.post("/api/alerts/test")
+def test_alert():
+    data = build_status()
+
+    result = send_discord_alert(
+        title="Test Alert",
+        message=f"Command Center alert system is online.\n\nHealth: {data.get('health')} ({data.get('health_score')}/100)",
+        severity="success"
+    )
+
+    return result
 
 @app.post("/api/analyze")
 def analyze():

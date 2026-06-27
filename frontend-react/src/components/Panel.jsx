@@ -1,6 +1,6 @@
-export default function Panel({ title, children }) {
+export default function Panel({ title, children, className = "" }) {
   return (
-    <section className="panel">
+    <section className={`panel ${className}`.trim()}>
       <h2>{title}</h2>
       {children}
     </section>
