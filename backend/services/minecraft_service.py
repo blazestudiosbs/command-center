@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 import struct
 import subprocess
@@ -67,6 +68,29 @@ def parse_players(list_response: str):
     return [p.strip() for p in after_colon.split(",") if p.strip()]
 
 
+def parse_player_capacity(list_response: str):
+    match = re.search(r"There are\s+(\d+)\s+of\s+a\s+max\s+of\s+(\d+)\s+players", list_response)
+    if not match:
+        return None, None
+
+    return int(match.group(1)), int(match.group(2))
+
+
+def _normalize_command(command_text: str) -> str:
+    return command_text.strip().lstrip("/")
+
+
+def _validate_player(player: str):
+    player = (player or "").strip()
+    if not player:
+        return None, {"ok": False, "error": "Player cannot be empty."}
+
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,16}", player):
+        return None, {"ok": False, "error": "Player must be a valid Minecraft username."}
+
+    return player, None
+
+
 def _format_uptime(seconds: float) -> str:
     seconds = int(seconds)
     days = seconds // 86400
@@ -115,6 +139,8 @@ def get_container_metrics(container):
         return {
             "cpu_percent": cpu_percentage,
             "memory_usage_percent": memory_percent,
+            "memory_usage_bytes": memory_usage,
+            "memory_limit_bytes": memory_limit,
         }
     except Exception:
         return {}
@@ -139,7 +165,7 @@ def is_routine_rcon_log(line: str) -> bool:
     lowered = line.lower()
     return (
         "rcon client" in lowered and ("started" in lowered or "shutting down" in lowered)
-    ) or "rcon listener" in lowered
+    ) or "rcon listener" in lowered or "rcon running" in lowered
 
 
 def get_logs(tail: int = 120):
@@ -160,43 +186,71 @@ def get_logs(tail: int = 120):
 def get_status():
     list_result = rcon("list")
     container = get_container()
+    container_status = "missing"
+    if container:
+        try:
+            container.reload()
+            container_status = container.status
+        except Exception:
+            container_status = getattr(container, "status", "unknown")
+
+    container_running = container_status == "running"
     metrics = get_container_metrics(container) if container else {}
     uptime = get_container_uptime(container)
+    server_type = "ATM10 / NeoForge"
 
     if not list_result.get("ok"):
         return {
             "online": False,
+            "running": container_running,
+            "state": "Running" if container_running else "Offline",
+            "container_status": container_status,
+            "rcon_online": False,
             "server_name": "ATM10",
             "players": [],
             "player_count": 0,
-            "version": "ATM10 / NeoForge",
+            "max_players": None,
+            "server_type": server_type,
+            "version": server_type,
             "raw": list_result,
             "tps": None,
             "mspt": None,
             "ram_usage": metrics.get("memory_usage_percent"),
+            "ram_usage_bytes": metrics.get("memory_usage_bytes"),
+            "ram_limit_bytes": metrics.get("memory_limit_bytes"),
             "cpu_usage": metrics.get("cpu_percent"),
             "uptime": uptime or "unknown",
         }
 
-    players = parse_players(list_result.get("response", ""))
+    list_response = list_result.get("response", "")
+    players = parse_players(list_response)
+    parsed_count, max_players = parse_player_capacity(list_response)
 
     return {
         "online": True,
+        "running": container_running,
+        "state": "Running",
+        "container_status": container_status,
+        "rcon_online": True,
         "server_name": "ATM10",
         "players": players,
-        "player_count": len(players),
-        "version": "ATM10 / NeoForge",
+        "player_count": parsed_count if parsed_count is not None else len(players),
+        "max_players": max_players,
+        "server_type": server_type,
+        "version": server_type,
         "raw": list_result,
         "tps": None,
         "mspt": None,
         "ram_usage": metrics.get("memory_usage_percent"),
+        "ram_usage_bytes": metrics.get("memory_usage_bytes"),
+        "ram_limit_bytes": metrics.get("memory_limit_bytes"),
         "cpu_usage": metrics.get("cpu_percent"),
         "uptime": uptime or "unknown",
     }
 
 
 def command(command_text: str):
-    command_text = command_text.strip()
+    command_text = _normalize_command(command_text)
     if not command_text:
         return {"ok": False, "error": "Command cannot be empty."}
 
@@ -208,14 +262,42 @@ def save_world():
 
 
 def op_player(player: str):
+    player, error = _validate_player(player)
+    if error:
+        return error
+
     return rcon(f"op {player}")
 
 
 def deop_player(player: str):
+    player, error = _validate_player(player)
+    if error:
+        return error
+
     return rcon(f"deop {player}")
 
 
+def kick_player(player: str):
+    player, error = _validate_player(player)
+    if error:
+        return error
+
+    return rcon(f"kick {player}")
+
+
+def ban_player(player: str):
+    player, error = _validate_player(player)
+    if error:
+        return error
+
+    return rcon(f"ban {player}")
+
+
 def say(message: str):
+    message = (message or "").strip()
+    if not message:
+        return {"ok": False, "error": "Broadcast message cannot be empty."}
+
     return rcon(f"say {message}")
 
 def container_action(action: str):

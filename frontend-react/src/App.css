@@ -264,9 +264,50 @@ button:disabled {
   padding: 10px 0;
 }
 
+.player-select {
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.player-select:hover,
+.player-select.selected {
+  background: #0f172a;
+  border-color: #2563eb;
+}
+
+.player-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .player-row-name {
   color: #f8fafc;
   font-weight: 700;
+}
+
+.player-selected-label {
+  color: #93c5fd;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.selected-player-panel {
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 14px;
 }
 
 .player-row-actions,
@@ -364,6 +405,17 @@ button:disabled {
 
 .action-result.success {
   color: #bbf7d0;
+}
+
+.command-result-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.command-result-command {
+  color: #93c5fd;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 @media (max-width: 640px) {

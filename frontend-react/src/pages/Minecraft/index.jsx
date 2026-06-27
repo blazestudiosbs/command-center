@@ -8,6 +8,8 @@ import {
   minecraftSave,
   minecraftOp,
   minecraftDeop,
+  minecraftKick,
+  minecraftBan,
   minecraftSay,
   getMinecraftLogs,
   sendMinecraftCommand,
@@ -15,6 +17,22 @@ import {
 
 function formatPercent(value) {
   return value == null ? "unknown" : `${value}%`;
+}
+
+function formatBytes(bytes) {
+  if (bytes == null) return "unknown";
+  const gib = bytes / 1024 / 1024 / 1024;
+  if (gib >= 1) return `${gib.toFixed(1)} GB`;
+  const mib = bytes / 1024 / 1024;
+  return `${mib.toFixed(0)} MB`;
+}
+
+function formatRam(status) {
+  if (!status) return "Loading...";
+  const percent = formatPercent(status.ram_usage);
+  if (status.ram_usage_bytes == null) return percent;
+  if (status.ram_limit_bytes == null) return `${formatBytes(status.ram_usage_bytes)} (${percent})`;
+  return `${formatBytes(status.ram_usage_bytes)} / ${formatBytes(status.ram_limit_bytes)} (${percent})`;
 }
 
 function formatTime(date) {
@@ -28,10 +46,19 @@ function resultText(response, fallback) {
   return response.error || response.stderr || JSON.stringify(response);
 }
 
+function isRconNoise(line) {
+  const lower = line.toLowerCase();
+  return (
+    (lower.includes("rcon client") && (lower.includes("started") || lower.includes("shutting down"))) ||
+    lower.includes("rcon listener") ||
+    lower.includes("rcon running")
+  );
+}
+
 function getLogClass(line) {
   const lower = line.toLowerCase();
 
-  if (line.includes("ERROR") || lower.includes("error")) return "log-line log-error";
+  if (line.includes("ERROR") || lower.includes("error") || lower.includes("exception") || lower.includes("fatal")) return "log-line log-error";
   if (line.includes("WARN") || lower.includes("warn")) return "log-line log-warn";
   if (lower.includes("can't keep up")) return "log-line log-performance";
   if (lower.includes("joined the game")) return "log-line log-join";
@@ -48,19 +75,18 @@ function StatusCard({ label, value, tone = "" }) {
   );
 }
 
-function MinecraftPlayerRow({ player, disabled, onOp, onDeop, onKick, onBan }) {
+function MinecraftPlayerRow({ player, selected, onSelect }) {
   return (
-    <div className="player-row">
+    <button
+      className={`player-row player-select ${selected ? "selected" : ""}`.trim()}
+      onClick={() => onSelect(player)}
+      type="button"
+    >
       <div className="player-row-meta">
         <span className="player-row-name">{player}</span>
+        {selected ? <span className="player-selected-label">Selected</span> : null}
       </div>
-      <div className="player-row-actions">
-        <button disabled={disabled} onClick={() => onOp(player)}>OP</button>
-        <button disabled={disabled} onClick={() => onDeop(player)}>DEOP</button>
-        <button disabled={disabled} onClick={() => onKick(player)}>Kick</button>
-        <button disabled={disabled} onClick={() => onBan(player)}>Ban</button>
-      </div>
-    </div>
+    </button>
   );
 }
 
@@ -107,7 +133,11 @@ function TerminalConsole({ logs, loading, error, lastUpdated, command, onCommand
 
       {commandResult ? (
         <div className={`action-result ${commandResult.ok ? "success" : "failure"}`}>
-          {resultText(commandResult, "Command completed.")}
+          <strong>{commandResult.ok ? "Command result" : "Command failed"}</strong>
+          <div className="command-result-body">
+            {commandResult.command ? <span className="command-result-command">/{commandResult.command}</span> : null}
+            <span>{resultText(commandResult, "Command completed.")}</span>
+          </div>
         </div>
       ) : null}
     </div>
@@ -118,7 +148,7 @@ export default function MinecraftPage() {
   const [status, setStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState("");
-  const [playerName, setPlayerName] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState("");
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -151,7 +181,8 @@ export default function MinecraftPage() {
       } else {
         setLogsError("");
       }
-      setLogs(Array.isArray(data.stdout) ? data.stdout : (data.stdout || "").split("\n").filter(Boolean));
+      const nextLogs = Array.isArray(data.stdout) ? data.stdout : (data.stdout || "").split("\n").filter(Boolean);
+      setLogs(nextLogs.filter((line) => !isRconNoise(line)));
       setLastUpdated(new Date());
     } catch (err) {
       setLogsError(err.message);
@@ -185,9 +216,25 @@ export default function MinecraftPage() {
     }
   }, [refreshMinecraft]);
 
-  const handlePlayerAction = async (apiFn, player, label) => {
-    if (!player.trim()) return;
-    await runAction(() => apiFn(player.trim()), label, "Complete.");
+  const handlePlayerAction = async (apiFn, label, successText = "Complete.") => {
+    if (!selectedPlayer) return;
+    await runAction(() => apiFn(selectedPlayer), label, successText);
+  };
+
+  const handleStop = () => {
+    if (!window.confirm("Stop the Minecraft server? Online players will be disconnected.")) return;
+    runAction(minecraftStop, "Stop", "Server stop requested.");
+  };
+
+  const handleRestart = () => {
+    if (!window.confirm("Restart the Minecraft server now? Online players will be disconnected temporarily.")) return;
+    runAction(minecraftRestart, "Restart", "Server restart requested.");
+  };
+
+  const handleBan = () => {
+    if (!selectedPlayer) return;
+    if (!window.confirm(`Ban ${selectedPlayer} from the Minecraft server?`)) return;
+    runAction(() => minecraftBan(selectedPlayer), "Ban", "Player banned.");
   };
 
   const handleBroadcast = async () => {
@@ -229,8 +276,18 @@ export default function MinecraftPage() {
   }, [refreshMinecraft]);
 
   const online = Boolean(status?.online);
+  const running = Boolean(status?.running ?? status?.online);
+  const stateLabel = status?.state ?? (online ? "Running" : "Offline");
   const players = Array.isArray(status?.players) ? status.players : [];
   const actionRunning = actionState.status === "running";
+  const selectedPlayerOnline = selectedPlayer && players.includes(selectedPlayer);
+  const playerActionDisabled = !selectedPlayerOnline || !online || actionRunning;
+
+  useEffect(() => {
+    if (selectedPlayer && !players.includes(selectedPlayer)) {
+      setSelectedPlayer("");
+    }
+  }, [players, selectedPlayer]);
 
   return (
     <div className="page-content minecraft-page">
@@ -246,13 +303,13 @@ export default function MinecraftPage() {
           </div>
           <div>
             <div className="label">State</div>
-            <span className={`status-badge ${online ? "online" : "offline"}`}>
-              {online ? "Running" : "Offline"}
+            <span className={`status-badge ${running ? "online" : "offline"}`}>
+              {stateLabel}
             </span>
           </div>
           <div>
             <div className="label">Server Type</div>
-            <div>{status?.version ?? "ATM10"}</div>
+            <div>{status?.server_type ?? status?.version ?? "ATM10 / NeoForge"}</div>
           </div>
         </div>
       </header>
@@ -260,12 +317,12 @@ export default function MinecraftPage() {
       {statusError ? <div className="action-result failure">Status error: {statusError}</div> : null}
 
       <section className="status-cards-grid">
-        <StatusCard label="State" value={statusLoading ? "Loading..." : online ? "Running" : "Offline"} tone={online ? "online" : "offline"} />
-        <StatusCard label="Players Online" value={status ? `${status.player_count ?? 0}` : "Loading..."} />
-        <StatusCard label="RAM Usage" value={formatPercent(status?.ram_usage)} />
+        <StatusCard label="State" value={statusLoading ? "Loading..." : stateLabel} tone={running ? "online" : "offline"} />
+        <StatusCard label="Players" value={status ? `${status.player_count ?? 0}${status.max_players ? ` / ${status.max_players}` : ""}` : "Loading..."} />
+        <StatusCard label="RAM" value={formatRam(status)} />
         <StatusCard label="CPU Usage" value={formatPercent(status?.cpu_usage)} />
         <StatusCard label="Uptime" value={status?.uptime ?? "unknown"} />
-        <StatusCard label="Server Type" value="ATM10" />
+        <StatusCard label="Server Type" value={status?.server_type ?? status?.version ?? "ATM10 / NeoForge"} />
       </section>
 
       <section className="workspace-grid">
@@ -276,11 +333,8 @@ export default function MinecraftPage() {
                 <MinecraftPlayerRow
                   key={player}
                   player={player}
-                  disabled={!online || actionRunning}
-                  onOp={(name) => handlePlayerAction(minecraftOp, name, "OP")}
-                  onDeop={(name) => handlePlayerAction(minecraftDeop, name, "DEOP")}
-                  onKick={(name) => runAction(() => sendMinecraftCommand(`/kick ${name}`), "Kick", "Player kicked.")}
-                  onBan={(name) => runAction(() => sendMinecraftCommand(`/ban ${name}`), "Ban", "Player banned.")}
+                  selected={selectedPlayer === player}
+                  onSelect={setSelectedPlayer}
                 />
               ))
             ) : (
@@ -292,24 +346,25 @@ export default function MinecraftPage() {
             )}
           </div>
 
-          <div className="inline-form">
-            <input
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Player name"
-            />
-            <button disabled={!playerName.trim() || actionRunning} onClick={() => handlePlayerAction(minecraftOp, playerName, "OP")}>OP</button>
-            <button disabled={!playerName.trim() || actionRunning} onClick={() => handlePlayerAction(minecraftDeop, playerName, "DEOP")}>DEOP</button>
-            <button disabled={!playerName.trim() || actionRunning} onClick={() => runAction(() => sendMinecraftCommand(`/kick ${playerName.trim()}`), "Kick", "Player kicked.")}>Kick</button>
-            <button disabled={!playerName.trim() || actionRunning} onClick={() => runAction(() => sendMinecraftCommand(`/ban ${playerName.trim()}`), "Ban", "Player banned.")}>Ban</button>
+          <div className="selected-player-panel">
+            <div>
+              <div className="label">Selected player</div>
+              <strong>{selectedPlayer || "No player selected"}</strong>
+            </div>
+            <div className="player-row-actions">
+              <button disabled={playerActionDisabled} onClick={() => handlePlayerAction(minecraftOp, "OP")}>OP</button>
+              <button disabled={playerActionDisabled} onClick={() => handlePlayerAction(minecraftDeop, "DEOP")}>DEOP</button>
+              <button disabled={playerActionDisabled} onClick={() => handlePlayerAction(minecraftKick, "Kick", "Player kicked.")}>Kick</button>
+              <button disabled={playerActionDisabled} onClick={handleBan}>Ban</button>
+            </div>
           </div>
         </Panel>
 
         <Panel title="Server Actions" className="panel-fullwidth">
           <div className="server-actions">
-            <button disabled={actionRunning} onClick={() => runAction(minecraftStart, "Start", "Server start requested.")}>Start</button>
-            <button disabled={actionRunning} onClick={() => runAction(minecraftRestart, "Restart", "Server restart requested.")}>Restart</button>
-            <button disabled={actionRunning || !online} onClick={() => runAction(minecraftStop, "Stop", "Server stop requested.")}>Stop</button>
+            <button disabled={actionRunning || running} onClick={() => runAction(minecraftStart, "Start", "Server start requested.")}>Start</button>
+            <button disabled={actionRunning || !online} onClick={handleRestart}>Restart</button>
+            <button disabled={actionRunning || !online} onClick={handleStop}>Stop</button>
             <button disabled={actionRunning || !online} onClick={() => runAction(minecraftSave, "Save World", "World save requested.")}>Save World</button>
           </div>
 

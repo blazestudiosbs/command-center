@@ -12,7 +12,7 @@ import subprocess
 import time
 from datetime import datetime
 
-from services import minecraft_service
+from services import advisor_service, minecraft_service
 
 app = FastAPI(title="Command Center V0")
 
@@ -337,6 +337,7 @@ def build_status():
     network_devices = get_network_devices()
     router_health = get_router_health()
     docker_status = get_docker_status()
+    minecraft_status = minecraft_service.get_status()
     projects = get_projects()
     services = get_service_status()
 
@@ -362,6 +363,7 @@ def build_status():
         "network_devices": network_devices,
         "router_health": router_health,
         "docker": docker_status,
+        "minecraft": minecraft_status,
         "projects": projects,
         "services": services,
     }
@@ -398,6 +400,12 @@ def build_status():
     data["recommendations"] = recommendations
 
     return data
+
+
+@app.get("/api/advisor/recommendations")
+def advisor_recommendations():
+    data = build_status()
+    return {"recommendations": advisor_service.build_recommendations(data)}
 
 
 @app.get("/api/status")
@@ -523,6 +531,16 @@ def minecraft_op(player: str):
 @app.post("/api/minecraft/deop")
 def minecraft_deop(player: str):
     return minecraft_service.deop_player(player)
+
+
+@app.post("/api/minecraft/kick")
+def minecraft_kick(player: str):
+    return minecraft_service.kick_player(player)
+
+
+@app.post("/api/minecraft/ban")
+def minecraft_ban(player: str):
+    return minecraft_service.ban_player(player)
 
 
 @app.post("/api/minecraft/say")

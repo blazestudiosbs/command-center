@@ -50,6 +50,16 @@ export async function minecraftDeop(player) {
   return res.data;
 }
 
+export async function minecraftKick(player) {
+  const res = await axios.post(`/api/minecraft/kick?player=${encodeURIComponent(player)}`);
+  return res.data;
+}
+
+export async function minecraftBan(player) {
+  const res = await axios.post(`/api/minecraft/ban?player=${encodeURIComponent(player)}`);
+  return res.data;
+}
+
 export async function minecraftSay(message) {
   const res = await axios.post(`/api/minecraft/say?message=${encodeURIComponent(message)}`);
   return res.data;
@@ -58,6 +68,11 @@ export async function minecraftSay(message) {
 export async function getMinecraftLogs(tail = 120) {
   const res = await axios.get(`/api/minecraft/logs?tail=${encodeURIComponent(tail)}`);
   return res.data;
+}
+
+export async function getAdvisorRecommendations() {
+  const res = await axios.get("/api/advisor/recommendations");
+  return res.data.recommendations;
 }
 
 export async function sendMinecraftCommand(command) {
