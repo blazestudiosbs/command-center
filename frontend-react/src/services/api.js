@@ -79,3 +79,33 @@ export async function sendMinecraftCommand(command) {
   const res = await axios.post(`/api/minecraft/command`, { command });
   return res.data;
 }
+
+export async function getPlexStatus() {
+  const res = await axios.get("/api/plex/status");
+  return res.data;
+}
+
+export async function getPlexLogs(tail = 160) {
+  const res = await axios.get(`/api/plex/logs?tail=${encodeURIComponent(tail)}`);
+  return res.data;
+}
+
+export async function plexStart() {
+  const res = await axios.post("/api/plex/start");
+  return res.data;
+}
+
+export async function plexStop() {
+  const res = await axios.post("/api/plex/stop");
+  return res.data;
+}
+
+export async function plexRestart() {
+  const res = await axios.post("/api/plex/restart");
+  return res.data;
+}
+
+export async function getSecurityStatus() {
+  const res = await axios.get("/api/security/status");
+  return res.data;
+}

@@ -12,7 +12,7 @@ import subprocess
 import time
 from datetime import datetime
 
-from services import advisor_service, minecraft_service
+from services import advisor_service, minecraft_service, plex_service, security_service
 
 app = FastAPI(title="Command Center V0")
 
@@ -546,6 +546,36 @@ def minecraft_ban(player: str):
 @app.post("/api/minecraft/say")
 def minecraft_say(message: str):
     return minecraft_service.say(message)
+
+
+@app.get("/api/plex/status")
+def plex_status():
+    return plex_service.get_status()
+
+
+@app.get("/api/plex/logs")
+def plex_logs(tail: int = 160):
+    return plex_service.get_logs(tail)
+
+
+@app.post("/api/plex/start")
+def plex_start():
+    return plex_service.container_action("start")
+
+
+@app.post("/api/plex/stop")
+def plex_stop():
+    return plex_service.container_action("stop")
+
+
+@app.post("/api/plex/restart")
+def plex_restart():
+    return plex_service.container_action("restart")
+
+
+@app.get("/api/security/status")
+def security_status():
+    return security_service.get_status()
 
 
 @app.post("/api/alerts/test")
