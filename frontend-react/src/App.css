@@ -615,6 +615,10 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.security-grid.four-column {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .security-badge {
   border-radius: 999px;
   display: inline-flex;
@@ -637,6 +641,11 @@ button:disabled {
 .security-badge.problem {
   background: rgba(239, 68, 68, 0.16);
   color: #fecaca;
+}
+
+.security-badge.info {
+  background: rgba(59, 130, 246, 0.16);
+  color: #bfdbfe;
 }
 
 .security-kv-list {
@@ -674,6 +683,7 @@ button:disabled {
 .security-port-row strong {
   color: #f8fafc;
   font-size: 1.15rem;
+  margin-right: 8px;
 }
 
 .security-port-protocol,
@@ -745,6 +755,10 @@ button:disabled {
   border-left: 4px solid #ef4444;
 }
 
+.security-recommendation.info {
+  border-left: 4px solid #3b82f6;
+}
+
 .security-recommendation p {
   color: #94a3b8;
   margin-top: 4px;
@@ -752,7 +766,8 @@ button:disabled {
 
 @media (max-width: 1100px) {
   .security-grid,
-  .security-grid.three-column {
+  .security-grid.three-column,
+  .security-grid.four-column {
     grid-template-columns: 1fr;
   }
 }

@@ -4,6 +4,7 @@ import { getSecurityStatus } from "../../services/api";
 
 function badgeTone(value) {
   if (value === "problem" || value === "public" || value === false) return "problem";
+  if (value === "info" || value === "informational") return "info";
   if (value === "recommendation" || value === "lan" || value === "lan-only") return "recommendation";
   return "good";
 }
@@ -37,10 +38,12 @@ function PortList({ ports, emptyText }) {
           <div>
             <strong>{entry.port}</strong>
             <span className="security-port-protocol">/{entry.protocol || "tcp"}</span>
+            {entry.status ? <StatusBadge tone={badgeTone(entry.category)}>{entry.status}</StatusBadge> : null}
           </div>
           <div className="security-port-meta">
             <span>{entry.processes?.length ? entry.processes.join(", ") : "unknown process"}</span>
             <span>{entry.addresses?.length ? entry.addresses.join(", ") : "unknown address"}</span>
+            {entry.ufw_rules?.length ? <span>UFW: {entry.ufw_rules.map((rule) => rule.raw).join("; ")}</span> : <span>UFW: no matching active allow rule</span>}
           </div>
         </div>
       ))}
@@ -87,7 +90,7 @@ function Recommendations({ recommendations }) {
       {recommendations.map((item) => (
         <div className={`security-recommendation ${item.severity}`} key={`${item.severity}-${item.title}`}>
           <StatusBadge tone={badgeTone(item.severity)}>
-            {item.severity === "good" ? "Good" : item.severity === "problem" ? "Problem" : "Recommendation"}
+            {item.severity === "good" ? "Good" : item.severity === "problem" ? "Problem" : item.severity === "info" ? "Informational" : "Recommendation"}
           </StatusBadge>
           <div>
             <strong>{item.title}</strong>
@@ -179,17 +182,21 @@ export default function SecurityPage() {
         </Panel>
       </section>
 
-      <section className="security-grid three-column">
+      <section className="security-grid four-column">
         <Panel title="Public Ports">
-          <PortList ports={status?.public_ports} emptyText="No public listening TCP ports detected." />
+          <PortList ports={status?.public_ports} emptyText="No listening ports are publicly allowed by UFW." />
         </Panel>
 
         <Panel title="LAN Ports">
-          <PortList ports={status?.lan_ports} emptyText="No LAN-only listening TCP ports detected." />
+          <PortList ports={status?.lan_ports} emptyText="No listening ports are restricted to private subnets by UFW." />
         </Panel>
 
         <Panel title="Localhost Ports">
           <PortList ports={status?.localhost_ports} emptyText="No localhost-only listening TCP ports detected." />
+        </Panel>
+
+        <Panel title="Informational Ports">
+          <PortList ports={status?.informational_ports} emptyText="No informational listening ports detected." />
         </Panel>
       </section>
 
