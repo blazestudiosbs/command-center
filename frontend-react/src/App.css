@@ -559,6 +559,140 @@ button:disabled {
   }
 }
 
+.development-page .panel h2 {
+  margin-bottom: 14px;
+}
+
+.dev-header-actions,
+.dev-overview-grid,
+.dev-tool-grid,
+.dev-kv-list,
+.dev-placeholder-list,
+.dev-commit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.dev-header-actions {
+  align-items: center;
+  grid-template-columns: auto auto;
+}
+
+.dev-header-actions > div {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.dev-overview-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dev-overview-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dev-overview-card strong,
+.dev-kv-list strong,
+.dev-commit-row strong {
+  overflow-wrap: anywhere;
+}
+
+.dev-badge {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  justify-content: center;
+  padding: 4px 10px;
+  width: fit-content;
+}
+
+.dev-badge.good {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.dev-badge.muted {
+  background: rgba(100, 116, 139, 0.2);
+  color: #cbd5e1;
+}
+
+.dev-tool-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.dev-tool-card,
+.dev-kv-list > div,
+.dev-placeholder-row,
+.dev-commit-row {
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.dev-tool-card,
+.dev-kv-list > div,
+.dev-placeholder-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.dev-tool-card span:first-child,
+.dev-kv-list span,
+.dev-placeholder-row span,
+.dev-commit-row span {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+
+.dev-placeholder-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.dev-commit-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 72px 1fr;
+}
+
+.dev-commit-row code {
+  color: #93c5fd;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.dev-commit-row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .dev-header-actions,
+  .dev-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-tool-card,
+  .dev-kv-list > div,
+  .dev-placeholder-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dev-commit-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .security-header-actions {
   align-items: stretch;
   display: flex;

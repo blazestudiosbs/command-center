@@ -12,7 +12,7 @@ import subprocess
 import time
 from datetime import datetime
 
-from services import advisor_service, minecraft_service, plex_service, security_service
+from services import advisor_service, development_service, minecraft_service, plex_service, security_service
 
 app = FastAPI(title="Command Center V0")
 
@@ -364,6 +364,7 @@ def build_status():
         "router_health": router_health,
         "docker": docker_status,
         "minecraft": minecraft_status,
+        "minecraft_analysis": minecraft_status.get("minecraft_analysis", {}),
         "projects": projects,
         "services": services,
     }
@@ -405,7 +406,10 @@ def build_status():
 @app.get("/api/advisor/recommendations")
 def advisor_recommendations():
     data = build_status()
-    return {"recommendations": advisor_service.build_recommendations(data)}
+    return {
+        "recommendations": advisor_service.build_recommendations(data),
+        "minecraft_analysis": data.get("minecraft_analysis", {}),
+    }
 
 
 @app.get("/api/status")
@@ -576,6 +580,11 @@ def plex_restart():
 @app.get("/api/security/status")
 def security_status():
     return security_service.get_status()
+
+
+@app.get("/api/development/status")
+def development_status():
+    return development_service.get_status()
 
 
 @app.post("/api/alerts/test")

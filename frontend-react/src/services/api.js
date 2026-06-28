@@ -109,3 +109,8 @@ export async function getSecurityStatus() {
   const res = await axios.get("/api/security/status");
   return res.data;
 }
+
+export async function getDevelopmentStatus() {
+  const res = await axios.get("/api/development/status");
+  return res.data;
+}
