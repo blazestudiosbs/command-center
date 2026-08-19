@@ -1,5 +1,32 @@
 import axios from "axios";
 
+axios.defaults.withCredentials = true;
+
+let csrfToken = "";
+
+export async function login(username, password) {
+  const res = await axios.post("/api/auth/login", { username, password });
+  csrfToken = res.data.csrf_token;
+  return res.data;
+}
+
+export async function getCurrentUser() {
+  const res = await axios.get("/api/auth/me");
+  csrfToken = res.data.csrf_token;
+  return res.data.user;
+}
+
+export async function logout() {
+  await axios.post("/api/auth/logout", null, {
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  csrfToken = "";
+}
+
+export function csrfHeaders() {
+  return { "X-CSRF-Token": csrfToken };
+}
+
 export async function getStatus() {
   const res = await axios.get("/api/status");
   return res.data;

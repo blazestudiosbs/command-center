@@ -5,3 +5,4 @@ __pycache__/
 # Runtime task state
 config/tasks.json
 config/task_runs/
+config/vera.db*

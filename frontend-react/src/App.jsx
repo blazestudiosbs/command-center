@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import Sidebar from "./components/Sidebar";
 import DashboardPage from "./pages/Dashboard";
@@ -11,6 +11,8 @@ import SecurityPage from "./pages/Security";
 import DevelopmentPage from "./pages/Development";
 import AutomationPage from "./pages/Automation";
 import SettingsPage from "./pages/Settings";
+import LoginPage from "./pages/Login";
+import { getCurrentUser, logout } from "./services/api";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard" },
@@ -40,12 +42,41 @@ const pageMap = {
 
 function App() {
   const [activePage, setActivePage] = useState("dashboard");
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const ActivePage = pageMap[activePage] ?? DashboardPage;
+
+  useEffect(() => {
+    getCurrentUser()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  async function signOut() {
+    try {
+      await logout();
+    } finally {
+      setUser(null);
+    }
+  }
+
+  if (authLoading) {
+    return <main className="login-shell"><p>Checking session…</p></main>;
+  }
+
+  if (!user) {
+    return <LoginPage onAuthenticated={setUser} />;
+  }
 
   return (
     <div className="app-shell">
       <Sidebar items={navItems} active={activePage} onSelect={setActivePage} />
       <main className="main-content">
+        <div className="session-bar">
+          <span>Signed in as {user.username}</span>
+          <button type="button" className="secondary-button" onClick={signOut}>Sign out</button>
+        </div>
         <ActivePage />
       </main>
     </div>

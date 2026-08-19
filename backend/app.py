@@ -13,9 +13,13 @@ import time
 from datetime import datetime
 from typing import List, Optional
 
+from routers.auth import router as auth_router
 from services import advisor_service, development_service, minecraft_service, plex_service, security_service, task_service, worker_service
+from storage import initialize_storage
 
 app = FastAPI(title="Command Center V0")
+app.include_router(auth_router)
+app.add_event_handler("startup", initialize_storage)
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
