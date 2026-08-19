@@ -41,12 +41,13 @@ def hash_password(password: str) -> str:
     derived = hashlib.scrypt(
         password.encode("utf-8"), salt=salt, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P
     )
-    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${_encode(salt)}${_encode(derived)}"
+    return f"scrypt:{SCRYPT_N}:{SCRYPT_R}:{SCRYPT_P}:{_encode(salt)}:{_encode(derived)}"
 
 
 def verify_password(password: str, encoded_hash: str) -> bool:
     try:
-        algorithm, n, r, p, salt, expected = encoded_hash.split("$", 5)
+        separator = ":" if ":" in encoded_hash else "$"
+        algorithm, n, r, p, salt, expected = encoded_hash.split(separator, 5)
         if algorithm != "scrypt":
             return False
         derived = hashlib.scrypt(

@@ -30,6 +30,7 @@ class AuthServiceTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_password_hash_round_trip(self):
+        self.assertNotIn("$", self.password_hash)
         self.assertTrue(auth_service.verify_password(self.password, self.password_hash))
         self.assertFalse(auth_service.verify_password("incorrect password", self.password_hash))
 

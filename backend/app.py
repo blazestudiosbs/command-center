@@ -10,6 +10,7 @@ import psutil
 import socket
 import subprocess
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
@@ -17,9 +18,15 @@ from routers.auth import router as auth_router
 from services import advisor_service, development_service, minecraft_service, plex_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
-app = FastAPI(title="Command Center V0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    initialize_storage()
+    yield
+
+
+app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
-app.add_event_handler("startup", initialize_storage)
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
