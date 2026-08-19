@@ -90,6 +90,16 @@ def sync_owner() -> bool:
             """,
             (OWNER_ID, owner_username(), password_hash, now, now),
         )
+        conn.execute(
+            """
+            INSERT INTO permissions
+                (id, user_id, domain, capability, effect, created_utc, updated_utc)
+            VALUES ('owner-development-agent-execute', ?, 'development',
+                    'agent_execute', 'allow', ?, ?)
+            ON CONFLICT(user_id, domain, capability) DO NOTHING
+            """,
+            (OWNER_ID, now, now),
+        )
     return True
 
 

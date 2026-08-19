@@ -13,6 +13,7 @@ import AutomationPage from "./pages/Automation";
 import SettingsPage from "./pages/Settings";
 import LoginPage from "./pages/Login";
 import { getCurrentUser, logout } from "./services/api";
+import VeraControl from "./components/VeraControl";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard" },
@@ -73,6 +74,7 @@ function App() {
     <div className="app-shell">
       <Sidebar items={navItems} active={activePage} onSelect={setActivePage} />
       <main className="main-content">
+        <VeraControl />
         <div className="session-bar">
           <span>Signed in as {user.username}</span>
           <button type="button" className="secondary-button" onClick={signOut}>Sign out</button>

@@ -27,6 +27,39 @@ export function csrfHeaders() {
   return { "X-CSRF-Token": csrfToken };
 }
 
+export async function getVeraControl() {
+  const res = await axios.get("/api/vera/control");
+  return res.data.control;
+}
+
+export async function changeVeraControl(action, reason, expectedVersion) {
+  const res = await axios.post(
+    `/api/vera/control/${action}`,
+    { reason, expected_version: expectedVersion },
+    { headers: csrfHeaders() },
+  );
+  return res.data.control;
+}
+
+export async function getVeraPermissions() {
+  const res = await axios.get("/api/vera/permissions");
+  return res.data.permissions;
+}
+
+export async function updateVeraPermission(domain, capability, effect) {
+  const res = await axios.put(
+    "/api/vera/permissions",
+    { domain, capability, effect },
+    { headers: csrfHeaders() },
+  );
+  return res.data.permission;
+}
+
+export async function getVeraAudit(limit = 100) {
+  const res = await axios.get(`/api/vera/audit?limit=${encodeURIComponent(limit)}`);
+  return res.data.events;
+}
+
 export async function getStatus() {
   const res = await axios.get("/api/status");
   return res.data;
@@ -203,17 +236,17 @@ export async function getTaskEvents(id) {
 }
 
 export async function runTaskCommand(id, commandKey) {
-  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-command`, { command_key: commandKey });
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-command`, { command_key: commandKey }, { headers: csrfHeaders() });
   return res.data;
 }
 
 export async function runTaskValidation(id) {
-  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-validation`);
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-validation`, null, { headers: csrfHeaders() });
   return res.data;
 }
 
 export async function runTaskRebuild(id) {
-  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-rebuild`);
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-rebuild`, null, { headers: csrfHeaders() });
   return res.data;
 }
 

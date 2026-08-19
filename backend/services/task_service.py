@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 import docker
 
+from services import audit_service, policy_service
+
 
 PRIORITIES = {"low", "medium", "high"}
 STATUSES = {"Queued", "Planning", "Reading", "Editing", "Building", "Testing", "Running", "Review", "Completed", "Failed"}
@@ -226,11 +228,39 @@ def get_task_events(task_id: str) -> Optional[List[Dict[str, Any]]]:
     return events
 
 
-def run_task_command(task_id: str, command: str, cwd: str = "/opt/command-center") -> Optional[Dict[str, Any]]:
+def run_task_command(task_id: str, command: str, cwd: str = "/opt/command-center", actor_user_id: str = "owner") -> Optional[Dict[str, Any]]:
     if not get_task(task_id):
         return None
 
     command_key, allowlisted_command = _resolve_command(command)
+    try:
+        decision = policy_service.require(
+            user_id=actor_user_id,
+            domain="development",
+            capability="agent_execute",
+        )
+    except policy_service.PolicyDeniedError as exc:
+        audit_service.append_event(
+            actor_user_id=actor_user_id,
+            action="development.command",
+            resource_type="task",
+            resource_id=task_id,
+            outcome="denied",
+            details={"command_key": command_key, "reason": exc.decision.reason},
+        )
+        raise
+    audit_service.append_event(
+        actor_user_id=actor_user_id,
+        action="development.command",
+        resource_type="task",
+        resource_id=task_id,
+        outcome="allowed",
+        details={
+            "command_key": command_key,
+            "permission_id": decision.permission_id,
+            "control_mode": decision.mode,
+        },
+    )
     working_dir = _command_cwd(DEVELOPMENT_WORKER_WORKDIR)
     append_task_event(
         task_id,
@@ -291,10 +321,27 @@ def run_task_command(task_id: str, command: str, cwd: str = "/opt/command-center
                 "Git diff stat updated.",
                 {"command_key": command_key, "stat": "\n".join(output_lines).strip()},
             )
+        audit_service.append_event(
+            actor_user_id=actor_user_id,
+            action="development.command",
+            resource_type="task",
+            resource_id=task_id,
+            outcome="succeeded" if exit_code == 0 else "failed",
+            details={"command_key": command_key, "exit_code": exit_code},
+        )
         return {"command_key": command_key, "command": allowlisted_command, "exit_code": exit_code, "worker": DEVELOPMENT_WORKER_CONTAINER}
     except Exception as e:
         message = _redact_secrets(str(e))
         append_task_event(task_id, "error", message, {"command_key": command_key, "command": allowlisted_command, "worker": DEVELOPMENT_WORKER_CONTAINER})
+        if not isinstance(e, policy_service.PolicyDeniedError):
+            audit_service.append_event(
+                actor_user_id=actor_user_id,
+                action="development.command",
+                resource_type="task",
+                resource_id=task_id,
+                outcome="failed",
+                details={"command_key": command_key, "error": message},
+            )
         raise
 
 

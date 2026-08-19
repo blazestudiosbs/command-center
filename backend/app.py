@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from openai import OpenAI
@@ -15,18 +15,22 @@ from datetime import datetime
 from typing import List, Optional
 
 from routers.auth import router as auth_router
-from services import advisor_service, development_service, minecraft_service, plex_service, security_service, task_service, worker_service
+from routers.auth import require_csrf
+from routers.control import router as control_router
+from services import advisor_service, auth_service, development_service, minecraft_service, plex_service, policy_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     initialize_storage()
+    auth_service.sync_owner()
     yield
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(control_router)
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
@@ -760,11 +764,13 @@ def get_task_events(task_id: str):
 
 
 @app.post("/api/tasks/{task_id}/run-command")
-def run_task_command(task_id: str, request: TaskRunCommandRequest):
+def run_task_command(task_id: str, request: TaskRunCommandRequest, session: dict = Depends(require_csrf)):
     try:
-        result = task_service.run_task_command(task_id, request.command_key)
+        result = task_service.run_task_command(task_id, request.command_key, actor_user_id=session["user_id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except policy_service.PolicyDeniedError as e:
+        raise HTTPException(status_code=423, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -774,11 +780,13 @@ def run_task_command(task_id: str, request: TaskRunCommandRequest):
 
 
 @app.post("/api/tasks/{task_id}/run-validation")
-def run_task_validation(task_id: str):
+def run_task_validation(task_id: str, session: dict = Depends(require_csrf)):
     results = []
     for command_key in task_service.VALIDATION_COMMAND_KEYS:
         try:
-            result = task_service.run_task_command(task_id, command_key)
+            result = task_service.run_task_command(task_id, command_key, actor_user_id=session["user_id"])
+        except policy_service.PolicyDeniedError as e:
+            raise HTTPException(status_code=423, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
         if result is None:
@@ -788,11 +796,13 @@ def run_task_validation(task_id: str):
 
 
 @app.post("/api/tasks/{task_id}/run-rebuild")
-def run_task_rebuild(task_id: str):
+def run_task_rebuild(task_id: str, session: dict = Depends(require_csrf)):
     results = []
     for command_key in task_service.REBUILD_COMMAND_KEYS:
         try:
-            result = task_service.run_task_command(task_id, command_key)
+            result = task_service.run_task_command(task_id, command_key, actor_user_id=session["user_id"])
+        except policy_service.PolicyDeniedError as e:
+            raise HTTPException(status_code=423, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
         if result is None:

@@ -78,6 +78,90 @@ body {
   background: #334155;
 }
 
+.vera-control {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin: -24px -24px 18px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #334155;
+  background: rgb(15 23 42 / 96%);
+  backdrop-filter: blur(12px);
+}
+
+.vera-control > div,
+.control-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.control-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgb(34 197 94 / 15%);
+}
+
+.vera-control.paused {
+  background: rgb(66 32 6 / 96%);
+  border-bottom-color: #92400e;
+}
+
+.vera-control.paused .control-status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgb(245 158 11 / 18%);
+}
+
+.vera-control.emergency_stop {
+  background: rgb(69 10 10 / 97%);
+  border-bottom-color: #dc2626;
+}
+
+.vera-control.emergency_stop .control-status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgb(239 68 68 / 20%);
+}
+
+.control-actions button {
+  padding: 8px 12px;
+}
+
+.control-pause {
+  background: #a16207;
+}
+
+.control-stop {
+  background: #b91c1c;
+}
+
+.control-stop:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.control-resume {
+  background: #15803d;
+}
+
+.control-error {
+  color: #fecaca;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 640px) {
+  .vera-control {
+    align-items: flex-start;
+    flex-direction: column;
+    margin: -24px -24px 16px;
+  }
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px 1fr;
