@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 DEFAULT_DATABASE_PATH = Path("/app/config/vera.db")
+MIGRATIONS_PATH = Path(__file__).resolve().parent / "migrations"
 
 
 def database_path() -> Path:
@@ -37,31 +38,29 @@ def connection():
 def initialize_storage() -> None:
     with connection() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
-        conn.executescript(
+        conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL CHECK (role IN ('owner')),
-                active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
-                created_utc TEXT NOT NULL,
-                updated_utc TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token_hash TEXT NOT NULL UNIQUE,
-                csrf_token TEXT NOT NULL,
-                created_utc TEXT NOT NULL,
-                expires_utc TEXT NOT NULL,
-                last_seen_utc TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_sessions_token_hash
-                ON sessions(token_hash);
-            CREATE INDEX IF NOT EXISTS idx_sessions_expires_utc
-                ON sessions(expires_utc);
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                applied_utc TEXT NOT NULL
+            )
             """
         )
+        applied = {
+            row["version"]
+            for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
+        }
+        for migration in sorted(MIGRATIONS_PATH.glob("*.sql")):
+            version_text, _, name = migration.stem.partition("_")
+            version = int(version_text)
+            if version in applied:
+                continue
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute(
+                """
+                INSERT INTO schema_migrations (version, name, applied_utc)
+                VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                """,
+                (version, name),
+            )
