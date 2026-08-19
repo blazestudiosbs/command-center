@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import StatCard from "../../components/StatCard";
+import Panel from "../../components/Panel";
 import BriefingPanel from "../../components/BriefingPanel";
 import AnalysisPanel from "../../components/AnalysisPanel";
 import ProjectPanel from "../../components/ProjectPanel";
 import RouterPanel from "../../components/RouterPanel";
-import { getStatus, getAnalysis, getBriefing } from "../../services/api";
+import { getStatus, getAnalysis, getBriefing, getAdvisorRecommendations } from "../../services/api";
 
 export default function DashboardPage() {
   const [status, setStatus] = useState(null);
+  const [advisorRecommendations, setAdvisorRecommendations] = useState([]);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState("");
@@ -24,8 +26,21 @@ export default function DashboardPage() {
       }
     }
 
+    async function loadAdvisor() {
+      try {
+        const recommendations = await getAdvisorRecommendations();
+        setAdvisorRecommendations(recommendations || []);
+      } catch (err) {
+        setAdvisorRecommendations([]);
+      }
+    }
+
     loadStatus();
-    const timer = setInterval(loadStatus, 30000);
+    loadAdvisor();
+    const timer = setInterval(() => {
+      loadStatus();
+      loadAdvisor();
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
 
@@ -46,6 +61,7 @@ export default function DashboardPage() {
 
   const projects = status.projects ?? [];
   const routerHealth = status.router_health;
+  const advisorSummary = advisorRecommendations[0];
 
   return (
     <div className="page-content">
@@ -67,6 +83,18 @@ export default function DashboardPage() {
 
       <section className="workspace-grid">
         <div className="workspace-column">
+          <Panel title="Advisor Summary">
+            {advisorSummary ? (
+              <div className="answer">
+                <strong>{advisorSummary.title}</strong>
+                <p>{advisorSummary.summary}</p>
+                <p><span className="label">Priority:</span> {advisorSummary.priority}</p>
+                <p><span className="label">Action:</span> {advisorSummary.action}</p>
+              </div>
+            ) : (
+              <p className="answer">Loading advisor recommendations...</p>
+            )}
+          </Panel>
           <BriefingPanel briefing={briefing} loading={loading === "briefing"} onGenerate={runBriefing} />
           <AnalysisPanel analysis={analysis} loading={loading === "analysis"} onAnalyze={runAnalysis} />
         </div>

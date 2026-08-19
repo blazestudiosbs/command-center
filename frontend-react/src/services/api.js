@@ -114,3 +114,108 @@ export async function getDevelopmentStatus() {
   const res = await axios.get("/api/development/status");
   return res.data;
 }
+
+export async function getWorkersStatus() {
+  const res = await axios.get("/api/workers/status");
+  return res.data;
+}
+
+export async function getTasks() {
+  const res = await axios.get("/api/tasks");
+  return res.data.tasks;
+}
+
+export async function getTask(id) {
+  const res = await axios.get(`/api/tasks/${encodeURIComponent(id)}`);
+  return res.data;
+}
+
+export async function createTask(task) {
+  const res = await axios.post("/api/tasks", task);
+  return res.data;
+}
+
+export async function updateTask(id, task) {
+  const res = await axios.patch(`/api/tasks/${encodeURIComponent(id)}`, task);
+  return res.data;
+}
+
+export async function startTask(id) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/start`);
+  return res.data;
+}
+
+export async function completeTask(id, resultSummary) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/complete`, { result_summary: resultSummary });
+  return res.data;
+}
+
+export async function failTask(id, resultSummary) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/fail`, { result_summary: resultSummary });
+  return res.data;
+}
+
+export async function retryTask(id) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/retry`);
+  return res.data;
+}
+
+export async function setTaskExecutionStage(id, executionStage) {
+  const res = await axios.patch(`/api/tasks/${encodeURIComponent(id)}/stage`, { execution_stage: executionStage });
+  return res.data;
+}
+
+export async function appendTaskLog(id, message) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/log`, { message });
+  return res.data;
+}
+
+export async function getTaskEvents(id) {
+  const res = await axios.get(`/api/tasks/${encodeURIComponent(id)}/events`);
+  return res.data.events;
+}
+
+export async function runTaskCommand(id, commandKey) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-command`, { command_key: commandKey });
+  return res.data;
+}
+
+export async function runTaskValidation(id) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-validation`);
+  return res.data;
+}
+
+export async function runTaskRebuild(id) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/run-rebuild`);
+  return res.data;
+}
+
+export async function initializeTaskPhases(id) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/phases/initialize`);
+  return res.data;
+}
+
+export async function startTaskPhase(id, phaseName) {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/phases/${encodeURIComponent(phaseName)}/start`);
+  return res.data;
+}
+
+export async function completeTaskPhase(id, phaseName, summary = "") {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/phases/${encodeURIComponent(phaseName)}/complete`, { summary });
+  return res.data;
+}
+
+export async function failTaskPhase(id, phaseName, summary = "") {
+  const res = await axios.post(`/api/tasks/${encodeURIComponent(id)}/phases/${encodeURIComponent(phaseName)}/fail`, { summary });
+  return res.data;
+}
+
+export async function getTaskLogs(id) {
+  const res = await axios.get(`/api/tasks/${encodeURIComponent(id)}/logs`);
+  return res.data.logs;
+}
+
+export async function deleteTask(id) {
+  const res = await axios.delete(`/api/tasks/${encodeURIComponent(id)}`);
+  return res.data;
+}

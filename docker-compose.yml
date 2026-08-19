@@ -9,7 +9,7 @@ services:
       - .env
     volumes:
       - /mnt/media:/host/mnt/media:ro
-      - ./config:/app/config:ro
+      - ./config:/app/config
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
@@ -25,4 +25,15 @@ services:
       dockerfile: frontend-react/Dockerfile
     container_name: command-center-ui
     network_mode: host
+    restart: unless-stopped
+  development-worker:
+    build:
+      context: .
+      dockerfile: development-worker/Dockerfile
+    container_name: development-worker
+    working_dir: /workspace/command-center
+    volumes:
+      - /opt/command-center:/workspace/command-center
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/workspace/command-center/config
     restart: unless-stopped

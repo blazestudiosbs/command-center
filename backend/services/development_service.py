@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -8,6 +9,8 @@ import docker
 
 DEFAULT_REPOSITORY_PATH = "/opt/command-center"
 DEFAULT_CODE_SERVER_URL = "http://192.168.50.10:8443"
+DEFAULT_WORKER_STATUS_FILE = "/tmp/development-worker-status.json"
+WORKER_STATUS_VALUES = {"Starting", "Ready", "Busy", "Degraded", "Offline"}
 
 
 def _tool_available(name: str) -> bool:
@@ -69,6 +72,80 @@ def _get_container_status(client, container_name: str) -> Dict[str, Any]:
         }
 
 
+def _worker_tool_available(client, container_name: str, command: str) -> bool:
+    if not client:
+        return False
+    try:
+        container = client.containers.get(container_name)
+        container.reload()
+        if container.status != "running":
+            return False
+        result = container.exec_run(["/bin/sh", "-lc", f"command -v {command} >/dev/null 2>&1"])
+        return result.exit_code == 0
+    except Exception:
+        return False
+
+
+def _read_worker_bootstrap_status(client, container_name: str) -> Dict[str, Any]:
+    if not client:
+        return {"worker_status": "Offline"}
+
+    status_file = os.getenv("WORKER_STATUS_FILE", DEFAULT_WORKER_STATUS_FILE)
+    try:
+        container = client.containers.get(container_name)
+        container.reload()
+        if container.status != "running":
+            return {"worker_status": "Offline"}
+
+        result = container.exec_run(["/bin/sh", "-lc", f"cat {status_file} 2>/dev/null"])
+        if result.exit_code != 0:
+            return {"worker_status": "Starting"}
+
+        payload = result.output.decode("utf-8", errors="replace").strip()
+        if not payload:
+            return {"worker_status": "Starting"}
+
+        data = json.loads(payload)
+        worker_status = str(data.get("worker_status") or data.get("status") or "Starting")
+        if worker_status not in WORKER_STATUS_VALUES:
+            worker_status = "Starting"
+        return {**data, "worker_status": worker_status}
+    except Exception:
+        return {"worker_status": "Starting"}
+
+
+def _get_development_worker_status(client) -> Dict[str, Any]:
+    container_name = os.getenv("DEVELOPMENT_WORKER_CONTAINER", "development-worker")
+    status = _get_container_status(client, container_name)
+    if not status.get("exists"):
+        return {
+            "exists": False,
+            "online": False,
+            "status": "Not Installed",
+            "worker_status": "Offline",
+            "tools": {},
+        }
+
+    bootstrap_status = _read_worker_bootstrap_status(client, container_name)
+    worker_status = bootstrap_status.get("worker_status", "Starting")
+    tools = {
+        "git": _worker_tool_available(client, container_name, "git"),
+        "docker": _worker_tool_available(client, container_name, "docker"),
+        "python": _worker_tool_available(client, container_name, "python3"),
+        "node": _worker_tool_available(client, container_name, "node"),
+        "npm": _worker_tool_available(client, container_name, "npm"),
+        "jq": _worker_tool_available(client, container_name, "jq"),
+    }
+    return {
+        **status,
+        **bootstrap_status,
+        "worker_status": worker_status,
+        "online": status.get("running", False),
+        "ready": worker_status == "Ready",
+        "tools": tools,
+    }
+
+
 def _get_git_status(repository_path: str) -> Dict[str, Any]:
     branch = _run_git(["branch", "--show-current"], repository_path)
     dirty_output = _run_git(["status", "--porcelain"], repository_path)
@@ -100,12 +177,15 @@ def get_status() -> Dict[str, Any]:
     code_server_url = os.getenv("CODE_SERVER_URL", DEFAULT_CODE_SERVER_URL)
     docker_client, docker_error = _get_docker_client()
     git_status = _get_git_status(repository_path)
+    development_worker = _get_development_worker_status(docker_client)
 
     return {
         "ok": True,
+        "worker_status": development_worker.get("worker_status", "Offline"),
         "repository_path": repository_path,
         "code_server_url": code_server_url,
         "code_server": _get_container_status(docker_client, code_server_container_name),
+        "development_worker": development_worker,
         "codex_cli_available": _tool_available("codex"),
         "node_available": _tool_available("node"),
         "npm_available": _tool_available("npm"),

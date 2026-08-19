@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from openai import OpenAI
 import docker
 import json
@@ -11,8 +11,9 @@ import socket
 import subprocess
 import time
 from datetime import datetime
+from typing import List, Optional
 
-from services import advisor_service, development_service, minecraft_service, plex_service, security_service
+from services import advisor_service, development_service, minecraft_service, plex_service, security_service, task_service, worker_service
 
 app = FastAPI(title="Command Center V0")
 
@@ -27,6 +28,60 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 class AskRequest(BaseModel):
     question: str
+
+
+class TaskCreateRequest(BaseModel):
+    project: str = "Command Center"
+    workspace: str = "Development"
+    title: str
+    goal: str
+    constraints: List[str] = Field(default_factory=list)
+    execution_mode: str = "safe_edit"
+    allowed_paths: List[str] = Field(default_factory=list)
+    validation_commands: List[str] = Field(default_factory=lambda: [
+        "python3 -m py_compile backend/app.py",
+        "cd frontend-react && npm run build",
+    ])
+    requires_manual_approval: bool = False
+    priority: str = "medium"
+
+
+class TaskPatchRequest(BaseModel):
+    project: Optional[str] = None
+    workspace: Optional[str] = None
+    title: Optional[str] = None
+    goal: Optional[str] = None
+    constraints: Optional[List[str]] = None
+    execution_mode: Optional[str] = None
+    allowed_paths: Optional[List[str]] = None
+    validation_commands: Optional[List[str]] = None
+    requires_manual_approval: Optional[bool] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    execution_stage: Optional[str] = None
+    started_utc: Optional[str] = None
+    completed_utc: Optional[str] = None
+    result_summary: Optional[str] = None
+
+
+class TaskResultRequest(BaseModel):
+    result_summary: str = ""
+
+
+class TaskStageRequest(BaseModel):
+    execution_stage: str
+
+
+class TaskLogAppendRequest(BaseModel):
+    message: str
+
+
+class TaskRunCommandRequest(BaseModel):
+    command_key: str
+
+
+class TaskPhaseResultRequest(BaseModel):
+    summary: str = ""
 
 
 def read_text(path: str, fallback: str = "unknown") -> str:
@@ -585,6 +640,210 @@ def security_status():
 @app.get("/api/development/status")
 def development_status():
     return development_service.get_status()
+
+
+@app.get("/api/workers/status")
+def workers_status():
+    return worker_service.get_status()
+
+
+@app.get("/api/tasks")
+def list_tasks():
+    return {"tasks": task_service.list_tasks()}
+
+
+@app.get("/api/tasks/{task_id}")
+def get_task(task_id: str):
+    task = task_service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks")
+def create_task(request: TaskCreateRequest):
+    try:
+        return task_service.create_task(request.dict())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.patch("/api/tasks/{task_id}")
+def update_task(task_id: str, request: TaskPatchRequest):
+    try:
+        task = task_service.update_task(task_id, request.dict(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/start")
+def start_task(task_id: str):
+    task = task_service.start_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/complete")
+def complete_task(task_id: str, request: TaskResultRequest):
+    task = task_service.complete_task(task_id, request.result_summary)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/fail")
+def fail_task(task_id: str, request: TaskResultRequest):
+    task = task_service.fail_task(task_id, request.result_summary)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/retry")
+def retry_task(task_id: str):
+    try:
+        task = task_service.retry_task(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.patch("/api/tasks/{task_id}/stage")
+def set_task_execution_stage(task_id: str, request: TaskStageRequest):
+    try:
+        task = task_service.set_execution_stage(task_id, request.execution_stage)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/log")
+def append_task_log(task_id: str, request: TaskLogAppendRequest):
+    try:
+        task = task_service.append_task_log(task_id, request.message)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return {"ok": True, "task_id": task_id}
+
+
+@app.get("/api/tasks/{task_id}/events")
+def get_task_events(task_id: str):
+    events = task_service.get_task_events(task_id)
+    if events is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return {"task_id": task_id, "events": events}
+
+
+@app.post("/api/tasks/{task_id}/run-command")
+def run_task_command(task_id: str, request: TaskRunCommandRequest):
+    try:
+        result = task_service.run_task_command(task_id, request.command_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return result
+
+
+@app.post("/api/tasks/{task_id}/run-validation")
+def run_task_validation(task_id: str):
+    results = []
+    for command_key in task_service.VALIDATION_COMMAND_KEYS:
+        try:
+            result = task_service.run_task_command(task_id, command_key)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        if result is None:
+            raise HTTPException(status_code=404, detail="Task not found.")
+        results.append(result)
+    return {"task_id": task_id, "results": results}
+
+
+@app.post("/api/tasks/{task_id}/run-rebuild")
+def run_task_rebuild(task_id: str):
+    results = []
+    for command_key in task_service.REBUILD_COMMAND_KEYS:
+        try:
+            result = task_service.run_task_command(task_id, command_key)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        if result is None:
+            raise HTTPException(status_code=404, detail="Task not found.")
+        results.append(result)
+    return {"task_id": task_id, "results": results}
+
+
+@app.post("/api/tasks/{task_id}/phases/initialize")
+def initialize_task_phases(task_id: str):
+    task = task_service.initialize_task_phases(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/phases/{phase_name}/start")
+def start_task_phase(task_id: str, phase_name: str):
+    try:
+        task = task_service.start_task_phase(task_id, phase_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/phases/{phase_name}/complete")
+def complete_task_phase(task_id: str, phase_name: str, request: TaskPhaseResultRequest):
+    try:
+        task = task_service.complete_task_phase(task_id, phase_name, request.summary)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/phases/{phase_name}/fail")
+def fail_task_phase(task_id: str, phase_name: str, request: TaskPhaseResultRequest):
+    try:
+        task = task_service.fail_task_phase(task_id, phase_name, request.summary)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return task
+
+
+@app.get("/api/tasks/{task_id}/logs")
+def get_task_logs(task_id: str):
+    logs = task_service.get_task_logs(task_id)
+    if logs is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return {"task_id": task_id, "logs": logs}
+
+
+@app.delete("/api/tasks/{task_id}")
+def delete_task(task_id: str):
+    if not task_service.delete_task(task_id):
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return {"ok": True, "deleted": task_id}
 
 
 @app.post("/api/alerts/test")

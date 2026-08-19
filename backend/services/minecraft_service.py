@@ -168,6 +168,19 @@ def is_routine_rcon_log(line: str) -> bool:
     ) or "rcon listener" in lowered or "rcon running" in lowered
 
 
+def _decode_logs(raw) -> str:
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", "replace")
+    if raw is None:
+        return ""
+    return str(raw)
+
+
+def _filtered_log_lines(raw):
+    output = _decode_logs(raw)
+    return [line for line in output.splitlines() if not is_routine_rcon_log(line)]
+
+
 def get_logs(tail: int = 120):
     container = get_container()
     if not container:
@@ -175,12 +188,134 @@ def get_logs(tail: int = 120):
 
     try:
         raw = container.logs(tail=tail, stdout=True, stderr=True)
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8", "replace")
-
-        return {"ok": True, "stdout": [line for line in raw.splitlines() if not is_routine_rcon_log(line)]}
+        return {"ok": True, "stdout": _filtered_log_lines(raw)}
     except Exception as e:
         return {"ok": False, "error": str(e), "stdout": []}
+
+
+def get_recent_logs_for_analysis():
+    container = get_container("minecraft-atm10")
+    if not container:
+        return {"ok": False, "error": "Minecraft container not found.", "stdout": [], "source": "docker_sdk_since_24h"}
+
+    log_requests = [
+        ("docker_sdk_since_24h", {"since": int(time.time() - 24 * 60 * 60)}),
+        ("docker_sdk_tail_3000", {"tail": 3000}),
+    ]
+    analysis_error = None
+
+    for index, (source, log_options) in enumerate(log_requests):
+        try:
+            raw = container.logs(
+                stdout=True,
+                stderr=True,
+                **log_options,
+            )
+            output = _decode_logs(raw)
+            if index == 0 and len(output) > 2_000_000:
+                analysis_error = "docker_sdk_since_24h output exceeded analysis limit."
+                continue
+
+            lines = _filtered_log_lines(output)
+            if index == 0 and not _has_analysis_events(lines):
+                analysis_error = "docker_sdk_since_24h returned no analysis events; fell back to docker_sdk_tail_3000."
+                continue
+
+            return {
+                "ok": True,
+                "stdout": lines,
+                "source": source,
+                "error": analysis_error if source != "docker_sdk_since_24h" else None,
+            }
+        except Exception as e:
+            analysis_error = str(e)
+            if index == len(log_requests) - 1:
+                return {"ok": False, "error": analysis_error, "stdout": [], "source": source}
+
+    return {"ok": False, "error": analysis_error or "Unable to read Minecraft logs.", "stdout": [], "source": "docker_sdk_tail_3000"}
+
+
+def _has_analysis_events(lines):
+    for line in lines or []:
+        lowered = line.lower()
+        if "can't keep up" in lowered or "server overloaded" in lowered or "lost connection" in lowered:
+            return True
+        if re.search(r"running\s+([0-9,]+)ms\s+or\s+([0-9,]+)\s+ticks\s+behind", line, re.IGNORECASE):
+            return True
+
+    return False
+
+
+def _parse_log_timestamp(line: str):
+    iso_match = re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?", line)
+    if iso_match:
+        return iso_match.group(0)
+
+    minecraft_match = re.search(r"\[(\d{1,2}[A-Za-z]{3}\d{4}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\]", line)
+    if minecraft_match:
+        return minecraft_match.group(1)
+
+    return None
+
+
+def analyze_logs(lines):
+    analysis = {
+        "analysis_window": "24h",
+        "keep_up_warning_count": 0,
+        "max_ticks_behind": 0,
+        "max_ms_behind": 0,
+        "disconnect_count": 0,
+        "timeout_count": 0,
+        "oom_detected": False,
+        "watchdog_detected": False,
+        "disconnect_near_keep_up": False,
+        "last_keep_up_at": None,
+        "last_disconnect_at": None,
+    }
+    keep_up_indexes = []
+    disconnect_indexes = []
+
+    for index, line in enumerate(lines or []):
+        lowered = line.lower()
+        keep_up = "can't keep up" in lowered or "server overloaded" in lowered
+        if keep_up:
+            analysis["keep_up_warning_count"] += 1
+            keep_up_indexes.append(index)
+            analysis["last_keep_up_at"] = _parse_log_timestamp(line) or analysis["last_keep_up_at"]
+
+        behind_match = re.search(r"running\s+([0-9,]+)ms\s+or\s+([0-9,]+)\s+ticks\s+behind", line, re.IGNORECASE)
+        if behind_match:
+            ms_behind = int(behind_match.group(1).replace(",", ""))
+            ticks_behind = int(behind_match.group(2).replace(",", ""))
+            analysis["max_ms_behind"] = max(analysis["max_ms_behind"], ms_behind)
+            analysis["max_ticks_behind"] = max(analysis["max_ticks_behind"], ticks_behind)
+            if not keep_up:
+                analysis["keep_up_warning_count"] += 1
+                keep_up_indexes.append(index)
+                analysis["last_keep_up_at"] = _parse_log_timestamp(line) or analysis["last_keep_up_at"]
+
+        if "lost connection" in lowered:
+            analysis["disconnect_count"] += 1
+            disconnect_indexes.append(index)
+            analysis["last_disconnect_at"] = _parse_log_timestamp(line) or analysis["last_disconnect_at"]
+
+        if "timed out" in lowered:
+            analysis["timeout_count"] += 1
+            disconnect_indexes.append(index)
+            analysis["last_disconnect_at"] = _parse_log_timestamp(line) or analysis["last_disconnect_at"]
+
+        if "outofmemoryerror" in lowered or "killed process" in lowered:
+            analysis["oom_detected"] = True
+
+        if "server watchdog" in lowered:
+            analysis["watchdog_detected"] = True
+
+    analysis["disconnect_near_keep_up"] = any(
+        abs(disconnect_index - keep_up_index) <= 20
+        for disconnect_index in disconnect_indexes
+        for keep_up_index in keep_up_indexes
+    )
+    return analysis
 
 
 def get_status():
@@ -197,6 +332,11 @@ def get_status():
     container_running = container_status == "running"
     metrics = get_container_metrics(container) if container else {}
     uptime = get_container_uptime(container)
+    logs = get_recent_logs_for_analysis()
+    minecraft_analysis = analyze_logs(logs.get("stdout", []))
+    minecraft_analysis["analysis_log_line_count"] = len(logs.get("stdout", []))
+    minecraft_analysis["analysis_source"] = logs.get("source")
+    minecraft_analysis["analysis_error"] = logs.get("error")
     server_type = "ATM10 / NeoForge"
 
     if not list_result.get("ok"):
@@ -220,6 +360,7 @@ def get_status():
             "ram_limit_bytes": metrics.get("memory_limit_bytes"),
             "cpu_usage": metrics.get("cpu_percent"),
             "uptime": uptime or "unknown",
+            "minecraft_analysis": minecraft_analysis,
         }
 
     list_response = list_result.get("response", "")
@@ -246,6 +387,7 @@ def get_status():
         "ram_limit_bytes": metrics.get("memory_limit_bytes"),
         "cpu_usage": metrics.get("cpu_percent"),
         "uptime": uptime or "unknown",
+        "minecraft_analysis": minecraft_analysis,
     }
 
 
