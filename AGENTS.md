@@ -48,6 +48,8 @@ Backend development:
   - `OPENAI_MODEL` (default `gpt-4.1-mini`)
   - `DISCORD_WEBHOOK`
 - `GET /api/openai/status` reports whether OpenAI is configured without exposing the key or making a billable API request.
+- Budget simulation is owned by `backend/services/budget_service.py`; `/api/budget/status`, `/api/budget/simulate`, and `/api/budget/ledger` never make OpenAI requests.
+- Budget limits and pricing estimates are configured with `VERA_BUDGET_*` and `VERA_OPENAI_*_COST_PER_MILLION` environment variables.
 - Preserve existing prompt structure and fallback messaging when updating AI behaviors.
 
 ## Agent guidance

@@ -16,7 +16,7 @@ from typing import List, Optional
 from routers.auth import router as auth_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
-from services import advisor_service, auth_service, development_service, minecraft_service, openai_service, plex_service, policy_service, security_service, task_service, worker_service
+from services import advisor_service, auth_service, budget_service, development_service, minecraft_service, openai_service, plex_service, policy_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -33,6 +33,14 @@ app.include_router(control_router)
 
 class AskRequest(BaseModel):
     question: str
+
+
+class BudgetSimulationRequest(BaseModel):
+    prompt: str = Field(default="", max_length=1_000_000)
+    max_output_tokens: int = Field(default=400, ge=0, le=32768)
+    input_tokens: Optional[int] = Field(default=None, ge=0, le=2_000_000)
+    domain: str = Field(default="general", max_length=100)
+    model: str = Field(default="gpt-4.1-mini", max_length=100)
 
 
 class TaskCreateRequest(BaseModel):
@@ -345,6 +353,12 @@ def get_service_status():
     })
 
     services.append({
+        "name": "Vera Budget",
+        "status": "simulation",
+        "detail": "Cost decisions are simulated; cloud calls are disabled",
+    })
+
+    services.append({
         "name": "Tailscale",
         "status": "unknown",
         "detail": "Status unavailable from container"
@@ -481,6 +495,27 @@ def status():
 @app.get("/api/openai/status")
 def openai_status():
     return openai_service.get_status()
+
+
+@app.get("/api/budget/status")
+def budget_status():
+    return budget_service.get_status()
+
+
+@app.post("/api/budget/simulate")
+def budget_simulate(request: BudgetSimulationRequest):
+    return budget_service.simulate(
+        prompt=request.prompt,
+        max_output_tokens=request.max_output_tokens,
+        input_tokens=request.input_tokens,
+        domain=request.domain,
+        model=request.model,
+    )
+
+
+@app.get("/api/budget/ledger")
+def budget_ledger(limit: int = 100):
+    return {"entries": budget_service.list_ledger(limit)}
 
 
 @app.post("/api/ask")

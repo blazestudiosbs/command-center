@@ -45,7 +45,7 @@ class VeraStorageTests(unittest.TestCase):
             }
         self.assertEqual(
             [(row[0], row[1]) for row in migrations],
-            [(1, "auth"), (2, "vera_core"), (3, "discord_gateway")],
+            [(1, "auth"), (2, "vera_core"), (3, "discord_gateway"), (4, "budget_ledger")],
         )
         self.assertTrue(
             {
@@ -57,6 +57,7 @@ class VeraStorageTests(unittest.TestCase):
                 "permissions",
                 "audit_events",
                 "conversation_bindings",
+                "budget_ledger",
             }.issubset(tables)
         )
 
