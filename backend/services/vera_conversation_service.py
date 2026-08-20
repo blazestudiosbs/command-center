@@ -49,7 +49,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 "stream": False,
                 "think": False,
                 "keep_alive": "30m",
-                "options": {"temperature": 0.4, "num_ctx": 8192},
+                "options": {"temperature": 0.4, "num_ctx": 4096, "num_predict": 256},
             },
             timeout=180,
         )
