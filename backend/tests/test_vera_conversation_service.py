@@ -30,7 +30,9 @@ class VeraConversationServiceTests(unittest.TestCase):
 
     @patch("services.vera_conversation_service.requests.post")
     def test_response_persists_user_and_assistant_and_is_idempotent(self, post):
-        post.return_value.json.return_value = {"message": {"content": "Hello Bruce"}}
+        post.return_value.json.return_value = {
+            "message": {"content": "<think>private reasoning</think>\nHello Bruce"}
+        }
         conversation = conversation_service.create_conversation("owner", "Discord")
         result = vera_conversation_service.respond(
             owner_user_id="owner",
