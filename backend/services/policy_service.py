@@ -1,8 +1,10 @@
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
+from services import budget_service
 from storage import connection
 
 
@@ -117,6 +119,91 @@ def list_permissions(user_id: str) -> list[dict]:
             (user_id,),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def _domain_policy(row) -> dict[str, Any]:
+    policy = dict(row)
+    policy["allowed_models"] = json.loads(policy.pop("allowed_models_json"))
+    policy["cloud_allowed"] = bool(policy["cloud_allowed"])
+    policy["approval_required"] = bool(policy["approval_required"])
+    return policy
+
+
+def list_domain_policies() -> list[dict[str, Any]]:
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM domain_policies ORDER BY domain"
+        ).fetchall()
+    return [_domain_policy(row) for row in rows]
+
+
+def get_domain_policy(domain: str) -> Optional[dict[str, Any]]:
+    normalized_domain = domain.strip().lower()
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM domain_policies WHERE domain = ?",
+            (normalized_domain,),
+        ).fetchone()
+    return _domain_policy(row) if row else None
+
+
+def evaluate_domain_request(
+    *,
+    domain: str,
+    provider: str,
+    model: str,
+    estimated_cost_usd: float,
+    approved: bool = False,
+) -> dict[str, Any]:
+    normalized_domain = domain.strip().lower()
+    normalized_provider = provider.strip().lower()
+    normalized_model = model.strip()
+    policy = get_domain_policy(normalized_domain)
+    base = {
+        "mode": "simulation",
+        "domain": normalized_domain,
+        "provider": normalized_provider,
+        "model": normalized_model,
+        "estimated_cost_usd": round(max(0.0, float(estimated_cost_usd)), 8),
+        "cloud_call_made": False,
+        "policy": policy,
+    }
+
+    if policy is None:
+        return {**base, "allowed": False, "effect": "deny", "reason": "No policy exists for this domain."}
+
+    if normalized_provider not in {"local", "openai"}:
+        return {**base, "allowed": False, "effect": "deny", "reason": "The requested provider is not supported."}
+
+    if normalized_provider == "openai" and not policy["cloud_allowed"]:
+        return {**base, "allowed": False, "effect": "deny", "reason": "Cloud models are disabled for this domain."}
+
+    model_key = "local" if normalized_provider == "local" else normalized_model
+    if model_key not in policy["allowed_models"]:
+        return {**base, "allowed": False, "effect": "deny", "reason": "The requested model is not allowed for this domain."}
+
+    if base["estimated_cost_usd"] > policy["max_request_usd"]:
+        return {**base, "allowed": False, "effect": "deny", "reason": "The estimate exceeds this domain's per-request limit."}
+
+    budget_decision = budget_service.evaluate_estimate(base["estimated_cost_usd"])
+    base["budget"] = budget_decision
+    if not budget_decision["allowed"]:
+        return {**base, "allowed": False, "effect": "deny", "reason": budget_decision["reason"]}
+
+    if normalized_provider == "openai" and policy["approval_required"] and not approved:
+        return {
+            **base,
+            "allowed": False,
+            "effect": "approval_required",
+            "reason": "Human approval is required before this domain may use a cloud model.",
+        }
+
+    return {
+        **base,
+        "allowed": True,
+        "effect": "allow",
+        "reason": "The simulated request satisfies the domain and budget policies.",
+    }
 
 
 def evaluate(*, user_id: str, domain: str, capability: str) -> PolicyDecision:

@@ -21,6 +21,14 @@ class PermissionRequest(BaseModel):
     effect: Literal["allow", "deny", "approval_required"]
 
 
+class DomainPolicyEvaluationRequest(BaseModel):
+    domain: str = Field(min_length=1, max_length=100)
+    provider: Literal["local", "openai"]
+    model: str = Field(min_length=1, max_length=100)
+    estimated_cost_usd: float = Field(default=0, ge=0, le=1000)
+    approved: bool = False
+
+
 def _change_mode(mode: str, request: ControlChangeRequest, session: dict) -> dict:
     before = policy_service.get_control_state()
     try:
@@ -94,6 +102,25 @@ def put_permission(request: PermissionRequest, session: dict = Depends(require_c
         },
     )
     return {"permission": permission}
+
+
+@router.get("/policies/domains")
+def get_domain_policies(session: dict = Depends(current_session)):
+    return {"policies": policy_service.list_domain_policies(), "mode": "simulation"}
+
+
+@router.post("/policies/evaluate")
+def evaluate_domain_policy(
+    request: DomainPolicyEvaluationRequest,
+    session: dict = Depends(current_session),
+):
+    return policy_service.evaluate_domain_request(
+        domain=request.domain,
+        provider=request.provider,
+        model=request.model,
+        estimated_cost_usd=request.estimated_cost_usd,
+        approved=request.approved,
+    )
 
 
 @router.get("/audit")

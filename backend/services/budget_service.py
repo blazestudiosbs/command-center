@@ -113,6 +113,20 @@ def _decision(estimated_cost_usd: float, spent: dict[str, float], limits: dict[s
     return "allow", "Estimated request cost is within all configured limits."
 
 
+def evaluate_estimate(estimated_cost_usd: float) -> dict[str, Any]:
+    status = get_status()
+    cost = max(0.0, float(estimated_cost_usd))
+    decision, reason = _decision(cost, status["spent"], status["limits"])
+    return {
+        "decision": decision,
+        "allowed": decision == "allow",
+        "reason": reason,
+        "estimated_cost_usd": round(cost, 8),
+        "limits": status["limits"],
+        "spent": status["spent"],
+    }
+
+
 def simulate(
     *,
     prompt: str,

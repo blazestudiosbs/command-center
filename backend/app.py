@@ -359,6 +359,12 @@ def get_service_status():
     })
 
     services.append({
+        "name": "Vera Policy",
+        "status": "simulation",
+        "detail": "Domain model, risk, budget, and approval rules are active",
+    })
+
+    services.append({
         "name": "Tailscale",
         "status": "unknown",
         "detail": "Status unavailable from container"
