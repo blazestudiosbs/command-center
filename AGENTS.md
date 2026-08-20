@@ -52,6 +52,8 @@ Backend development:
 - Budget limits and pricing estimates are configured with `VERA_BUDGET_*` and `VERA_OPENAI_*_COST_PER_MILLION` environment variables.
 - Domain model, risk, approval, and spend policies are seeded by migration `005_domain_policies.sql` and evaluated by the existing `policy_service.py` in simulation mode.
 - Authenticated policy inspection is available through `/api/vera/policies/domains` and `/api/vera/policies/evaluate`.
+- Local-first routing simulation is owned by `backend/services/router_service.py` and records decisions without executing either local or cloud models.
+- Authenticated router inspection is available through `/api/vera/router/status`, `/api/vera/router/simulate`, and `/api/vera/router/decisions`.
 - Preserve existing prompt structure and fallback messaging when updating AI behaviors.
 
 ## Agent guidance

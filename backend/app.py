@@ -365,6 +365,12 @@ def get_service_status():
     })
 
     services.append({
+        "name": "Vera Router",
+        "status": "simulation",
+        "detail": "Local-first route decisions are simulated; execution is disabled",
+    })
+
+    services.append({
         "name": "Tailscale",
         "status": "unknown",
         "detail": "Status unavailable from container"

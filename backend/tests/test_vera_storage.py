@@ -51,6 +51,7 @@ class VeraStorageTests(unittest.TestCase):
                 (3, "discord_gateway"),
                 (4, "budget_ledger"),
                 (5, "domain_policies"),
+                (6, "routing_decisions"),
             ],
         )
         self.assertTrue(
@@ -65,6 +66,7 @@ class VeraStorageTests(unittest.TestCase):
                 "conversation_bindings",
                 "budget_ledger",
                 "domain_policies",
+                "routing_decisions",
             }.issubset(tables)
         )
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from routers.auth import current_session, require_csrf
-from services import audit_service, policy_service
+from services import audit_service, policy_service, router_service
 
 
 router = APIRouter(prefix="/api/vera", tags=["vera-control"])
@@ -26,6 +26,15 @@ class DomainPolicyEvaluationRequest(BaseModel):
     provider: Literal["local", "openai"]
     model: str = Field(min_length=1, max_length=100)
     estimated_cost_usd: float = Field(default=0, ge=0, le=1000)
+    approved: bool = False
+
+
+class RoutingSimulationRequest(BaseModel):
+    domain: str = Field(default="general", min_length=1, max_length=100)
+    prompt: str = Field(min_length=1, max_length=1_000_000)
+    max_output_tokens: int = Field(default=400, ge=0, le=32768)
+    local_available: bool = True
+    local_confidence: float = Field(default=1.0, ge=0, le=1)
     approved: bool = False
 
 
@@ -121,6 +130,31 @@ def evaluate_domain_policy(
         estimated_cost_usd=request.estimated_cost_usd,
         approved=request.approved,
     )
+
+
+@router.get("/router/status")
+def get_router_status(session: dict = Depends(current_session)):
+    return router_service.get_status()
+
+
+@router.post("/router/simulate")
+def simulate_route(
+    request: RoutingSimulationRequest,
+    session: dict = Depends(current_session),
+):
+    return router_service.simulate(
+        domain=request.domain,
+        prompt=request.prompt,
+        max_output_tokens=request.max_output_tokens,
+        local_available=request.local_available,
+        local_confidence=request.local_confidence,
+        approved=request.approved,
+    )
+
+
+@router.get("/router/decisions")
+def get_routing_decisions(limit: int = 100, session: dict = Depends(current_session)):
+    return {"decisions": router_service.list_decisions(limit)}
 
 
 @router.get("/audit")
