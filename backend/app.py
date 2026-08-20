@@ -1,7 +1,6 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from openai import OpenAI
 import docker
 import json
 import os
@@ -17,7 +16,7 @@ from typing import List, Optional
 from routers.auth import router as auth_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
-from services import advisor_service, auth_service, development_service, minecraft_service, plex_service, policy_service, security_service, task_service, worker_service
+from services import advisor_service, auth_service, development_service, minecraft_service, openai_service, plex_service, policy_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -31,15 +30,6 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(control_router)
-
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    timeout=30.0,
-    max_retries=1,
-)
-
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-
 
 class AskRequest(BaseModel):
     question: str
@@ -347,10 +337,11 @@ def get_service_status():
         "detail": f"{docker_status.get('running', 0)} running container(s)"
     })
 
+    openai_status = openai_service.get_status()
     services.append({
         "name": "OpenAI",
-        "status": "configured" if bool(os.getenv("OPENAI_API_KEY")) else "missing",
-        "detail": "API key present" if bool(os.getenv("OPENAI_API_KEY")) else "API key missing"
+        "status": openai_status["status"],
+        "detail": openai_status["detail"],
     })
 
     services.append({
@@ -485,6 +476,11 @@ def advisor_recommendations():
 @app.get("/api/status")
 def status():
     return build_status()
+
+
+@app.get("/api/openai/status")
+def openai_status():
+    return openai_service.get_status()
 
 
 @app.post("/api/ask")
@@ -883,9 +879,11 @@ def test_alert():
 def analyze():
     data = build_status()
 
-    if not os.getenv("OPENAI_API_KEY"):
+    client = openai_service.get_client()
+    if client is None:
         return {
-            "analysis": "OpenAI API key is not configured yet. Add OPENAI_API_KEY to /opt/command-center/.env and rebuild the container."
+            "analysis": "OpenAI API key is not configured yet. Add OPENAI_API_KEY to /opt/command-center/.env and rebuild the container.",
+            "provider": "local",
         }
 
     prompt = f"""
@@ -906,7 +904,7 @@ Server status JSON:
 
     try:
         response = client.responses.create(
-            model=OPENAI_MODEL,
+            model=openai_service.get_model(),
             input=prompt,
             max_output_tokens=400,
         )
@@ -920,8 +918,12 @@ Server status JSON:
 def briefing():
     data = build_status()
 
-    if not os.getenv("OPENAI_API_KEY"):
-        return {"briefing": "OpenAI API key is not configured yet."}
+    client = openai_service.get_client()
+    if client is None:
+        return {
+            "briefing": "OpenAI API key is not configured yet.",
+            "provider": "local",
+        }
 
     briefing_payload = {
         "system": {
@@ -950,7 +952,7 @@ Daily briefing JSON:
 
     try:
         response = client.responses.create(
-            model=OPENAI_MODEL,
+            model=openai_service.get_model(),
             input=prompt,
             max_output_tokens=500,
         )

@@ -41,12 +41,13 @@ Backend development:
 
 ## Chat / AI integration
 
-- `backend/app.py` uses the OpenAI Python client via `OpenAI(api_key=..., timeout=..., max_retries=1)`.
+- `backend/services/openai_service.py` owns the existing OpenAI Python client configuration used by `backend/app.py`.
 - Chat-style features are implemented in `/api/ask`, `/api/analyze`, and `/api/briefing`.
 - Relevant environment variables:
-  - `OPENAI_API_KEY`
+  - `OPENAI_API_KEY` (optional; when blank or absent, cloud requests are disabled)
   - `OPENAI_MODEL` (default `gpt-4.1-mini`)
   - `DISCORD_WEBHOOK`
+- `GET /api/openai/status` reports whether OpenAI is configured without exposing the key or making a billable API request.
 - Preserve existing prompt structure and fallback messaging when updating AI behaviors.
 
 ## Agent guidance
