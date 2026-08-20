@@ -38,6 +38,11 @@ class RoutingSimulationRequest(BaseModel):
     approved: bool = False
 
 
+class CloudRoutingChangeRequest(BaseModel):
+    reason: str = Field(default="", max_length=500)
+    expected_version: Optional[int] = Field(default=None, ge=1)
+
+
 def _change_mode(mode: str, request: ControlChangeRequest, session: dict) -> dict:
     before = policy_service.get_control_state()
     try:
@@ -49,6 +54,24 @@ def _change_mode(mode: str, request: ControlChangeRequest, session: dict) -> dic
         )
     except policy_service.ControlVersionConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    cloud_disabled = False
+    cloud_state = router_service.get_cloud_routing_state()
+    if mode != "active" and cloud_state["enabled"]:
+        router_service.set_cloud_routing(
+            enabled=False,
+            actor_user_id=session["user_id"],
+            reason=f"Cloud routing disabled by global {mode} control",
+            expected_version=cloud_state["version"],
+        )
+        cloud_disabled = True
+        audit_service.append_event(
+            actor_user_id=session["user_id"],
+            action="cloud_routing.disabled",
+            resource_type="cloud_routing_state",
+            resource_id="global",
+            outcome="succeeded",
+            details={"reason": f"Global control changed to {mode}."},
+        )
     audit_service.append_event(
         actor_user_id=session["user_id"],
         action=f"control.{mode}",
@@ -60,6 +83,7 @@ def _change_mode(mode: str, request: ControlChangeRequest, session: dict) -> dic
             "mode": state["mode"],
             "version": state["version"],
             "reason": state["reason"],
+            "cloud_routing_disabled": cloud_disabled,
         },
     )
     return {"control": state}
@@ -135,6 +159,56 @@ def evaluate_domain_policy(
 @router.get("/router/status")
 def get_router_status(session: dict = Depends(current_session)):
     return router_service.get_status()
+
+
+@router.get("/router/cloud")
+def get_cloud_routing(session: dict = Depends(current_session)):
+    return {"cloud_routing": router_service.get_cloud_routing_state()}
+
+
+def _change_cloud_routing(enabled: bool, request: CloudRoutingChangeRequest, session: dict):
+    before = router_service.get_cloud_routing_state()
+    try:
+        state = router_service.set_cloud_routing(
+            enabled=enabled,
+            actor_user_id=session["user_id"],
+            reason=request.reason,
+            expected_version=request.expected_version,
+        )
+    except router_service.CloudRoutingVersionConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except router_service.CloudRoutingUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail=str(exc)) from exc
+    audit_service.append_event(
+        actor_user_id=session["user_id"],
+        action="cloud_routing.enabled" if enabled else "cloud_routing.disabled",
+        resource_type="cloud_routing_state",
+        resource_id="global",
+        outcome="succeeded",
+        details={
+            "previous_enabled": before["enabled"],
+            "enabled": state["enabled"],
+            "version": state["version"],
+            "reason": state["reason"],
+        },
+    )
+    return {"cloud_routing": state}
+
+
+@router.post("/router/cloud/enable")
+def enable_cloud_routing(
+    request: CloudRoutingChangeRequest,
+    session: dict = Depends(require_csrf),
+):
+    return _change_cloud_routing(True, request, session)
+
+
+@router.post("/router/cloud/disable")
+def disable_cloud_routing(
+    request: CloudRoutingChangeRequest,
+    session: dict = Depends(require_csrf),
+):
+    return _change_cloud_routing(False, request, session)
 
 
 @router.post("/router/simulate")

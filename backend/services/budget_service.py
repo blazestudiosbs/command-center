@@ -14,6 +14,10 @@ DEFAULT_INPUT_COST_PER_MILLION = 0.40
 DEFAULT_OUTPUT_COST_PER_MILLION = 1.60
 
 
+class BudgetDeniedError(RuntimeError):
+    pass
+
+
 def _positive_float(name: str, default: float) -> float:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -53,6 +57,12 @@ def estimate_input_tokens(text: str) -> int:
     return max(1, math.ceil(len(text) / 4))
 
 
+def estimate_live_input_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(estimate_input_tokens(text), len(text.encode("utf-8")))
+
+
 def estimate_cost(input_tokens: int, output_tokens: int) -> float:
     config = get_config()
     pricing = config["pricing"]
@@ -87,19 +97,47 @@ def _period_spend(now: datetime) -> dict[str, float]:
     return {"daily_usd": round(float(row["daily"]), 8), "monthly_usd": round(float(row["monthly"]), 8)}
 
 
+def _period_spend_in_connection(conn, now: datetime) -> dict[str, float]:
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = day_start.replace(day=1)
+    row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN created_utc >= ? THEN actual_cost_usd ELSE 0 END), 0) AS daily,
+            COALESCE(SUM(CASE WHEN created_utc >= ? THEN actual_cost_usd ELSE 0 END), 0) AS monthly
+        FROM budget_ledger
+        WHERE mode = 'live' AND status = 'completed' AND actual_cost_usd IS NOT NULL
+        """,
+        (
+            day_start.isoformat().replace("+00:00", "Z"),
+            month_start.isoformat().replace("+00:00", "Z"),
+        ),
+    ).fetchone()
+    return {
+        "daily_usd": round(float(row["daily"]), 8),
+        "monthly_usd": round(float(row["monthly"]), 8),
+    }
+
+
 def get_status() -> dict[str, Any]:
     config = get_config()
     spent = _period_spend(_utc_now())
     limits = config["limits"]
+    with connection() as conn:
+        cloud_row = conn.execute(
+            "SELECT enabled FROM cloud_routing_state WHERE id = 'global'"
+        ).fetchone()
     return {
         **config,
+        "mode": "guarded",
         "spent": spent,
         "remaining": {
             "daily_usd": round(max(0.0, limits["daily_usd"] - spent["daily_usd"]), 8),
             "monthly_usd": round(max(0.0, limits["monthly_usd"] - spent["monthly_usd"]), 8),
         },
-        "cloud_calls_enabled": False,
-        "detail": "Budget decisions are simulated; this service does not make cloud requests.",
+        "cloud_calls_enabled": bool(cloud_row and cloud_row["enabled"]),
+        "live_reservations_enabled": True,
+        "detail": "Simulations are available; live calls reserve budget before submission.",
     }
 
 
@@ -172,6 +210,87 @@ def simulate(
             ),
         )
     return {**entry, "limits": status["limits"], "spent": status["spent"]}
+
+
+def reserve_live(
+    *,
+    prompt: str,
+    max_output_tokens: int,
+    domain: str,
+    model: str,
+) -> dict[str, Any]:
+    input_tokens = estimate_live_input_tokens(prompt)
+    output_tokens = max(0, int(max_output_tokens))
+    estimated_cost = estimate_cost(input_tokens, output_tokens)
+    limits = get_config()["limits"]
+    now = _utc_now()
+    created_utc = now.isoformat().replace("+00:00", "Z")
+    entry_id = str(uuid.uuid4())
+    with connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        spent = _period_spend_in_connection(conn, now)
+        decision, reason = _decision(estimated_cost, spent, limits)
+        if decision != "allow":
+            raise BudgetDeniedError(reason)
+        conn.execute(
+            """
+            INSERT INTO budget_ledger
+                (id, mode, domain, model, input_tokens, output_tokens,
+                 estimated_cost_usd, actual_cost_usd, decision, reason, status, created_utc)
+            VALUES (?, 'live', ?, ?, ?, ?, ?, ?, 'allow', ?, 'completed', ?)
+            """,
+            (
+                entry_id,
+                domain.strip().lower(),
+                model,
+                input_tokens,
+                output_tokens,
+                estimated_cost,
+                estimated_cost,
+                "Worst-case cost reserved before the API request.",
+                created_utc,
+            ),
+        )
+    return {
+        "id": entry_id,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "estimated_cost_usd": estimated_cost,
+        "reserved_cost_usd": estimated_cost,
+    }
+
+
+def settle_live(entry_id: str, *, input_tokens: int, output_tokens: int) -> dict[str, Any]:
+    actual_cost = estimate_cost(input_tokens, output_tokens)
+    with connection() as conn:
+        conn.execute(
+            """
+            UPDATE budget_ledger
+            SET input_tokens = ?, output_tokens = ?, actual_cost_usd = ?,
+                reason = 'Settled from API-reported token usage.'
+            WHERE id = ? AND mode = 'live'
+            """,
+            (max(0, input_tokens), max(0, output_tokens), actual_cost, entry_id),
+        )
+        row = conn.execute(
+            "SELECT * FROM budget_ledger WHERE id = ?",
+            (entry_id,),
+        ).fetchone()
+    if not row:
+        raise RuntimeError("Live budget reservation is unavailable.")
+    return dict(row)
+
+
+def retain_live_reservation(entry_id: str, reason: str) -> None:
+    with connection() as conn:
+        conn.execute(
+            """
+            UPDATE budget_ledger
+            SET reason = ?
+            WHERE id = ? AND mode = 'live'
+            """,
+            (f"Reservation retained because cost is uncertain: {reason}"[:500], entry_id),
+        )
 
 
 def list_ledger(limit: int = 100) -> list[dict[str, Any]]:

@@ -84,6 +84,24 @@ class ControlRouterTests(unittest.TestCase):
         )
         self.assertEqual(stale.status_code, 409)
 
+    def test_cloud_routing_toggle_requires_csrf_and_is_audited(self):
+        initial = self.client.get("/api/vera/router/cloud").json()["cloud_routing"]
+        self.assertFalse(initial["enabled"])
+
+        rejected = self.client.post("/api/vera/router/cloud/enable", json={})
+        self.assertEqual(rejected.status_code, 403)
+
+        enabled = self.client.post(
+            "/api/vera/router/cloud/enable",
+            headers={"X-CSRF-Token": self.csrf},
+            json={"reason": "Router test", "expected_version": initial["version"]},
+        )
+        self.assertEqual(enabled.status_code, 200)
+        self.assertTrue(enabled.json()["cloud_routing"]["enabled"])
+
+        events = self.client.get("/api/vera/audit").json()["events"]
+        self.assertEqual(events[0]["action"], "cloud_routing.enabled")
+
 
 if __name__ == "__main__":
     unittest.main()

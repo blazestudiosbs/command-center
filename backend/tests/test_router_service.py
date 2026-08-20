@@ -40,6 +40,29 @@ class RouterServiceTests(unittest.TestCase):
         self.assertFalse(result["cloud_call_made"])
         self.assertEqual(budget_service.list_ledger(), [])
 
+    def test_cloud_routing_defaults_off_and_persists_explicit_change(self):
+        initial = router_service.get_cloud_routing_state()
+        self.assertFalse(initial["enabled"])
+        self.assertFalse(initial["effective_enabled"])
+
+        enabled = router_service.set_cloud_routing(
+            enabled=True,
+            actor_user_id=None,
+            reason="Test enable",
+            expected_version=initial["version"],
+        )
+        self.assertTrue(enabled["enabled"])
+        self.assertTrue(enabled["effective_enabled"])
+        self.assertTrue(router_service.get_cloud_routing_state()["enabled"])
+
+        with self.assertRaises(router_service.CloudRoutingVersionConflictError):
+            router_service.set_cloud_routing(
+                enabled=False,
+                actor_user_id=None,
+                reason="Stale disable",
+                expected_version=initial["version"],
+            )
+
     def test_low_confidence_general_request_would_escalate(self):
         result = router_service.simulate(
             domain="general",

@@ -154,6 +154,29 @@ body {
   font-size: 0.82rem;
 }
 
+.cloud-routing-status {
+  padding: 4px 8px;
+  border: 1px solid #475569;
+  border-radius: 999px;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.cloud-routing-status.enabled {
+  border-color: #2563eb;
+  background: rgb(37 99 235 / 18%);
+  color: #bfdbfe;
+}
+
+.cloud-routing-enable {
+  background: #1d4ed8;
+}
+
+.cloud-routing-disable {
+  background: #475569;
+}
+
 @media (max-width: 640px) {
   .vera-control {
     align-items: flex-start;

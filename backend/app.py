@@ -16,7 +16,7 @@ from typing import List, Optional
 from routers.auth import router as auth_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
-from services import advisor_service, auth_service, budget_service, development_service, minecraft_service, openai_service, plex_service, policy_service, security_service, task_service, worker_service
+from services import advisor_service, auth_service, budget_service, development_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -338,6 +338,7 @@ def get_health(score):
 def get_service_status():
     services = []
     docker_status = get_docker_status()
+    cloud_routing = router_service.get_cloud_routing_state()
 
     services.append({
         "name": "Docker",
@@ -354,8 +355,8 @@ def get_service_status():
 
     services.append({
         "name": "Vera Budget",
-        "status": "simulation",
-        "detail": "Cost decisions are simulated; cloud calls are disabled",
+        "status": "guarded",
+        "detail": "Live cloud requests reserve budget before submission",
     })
 
     services.append({
@@ -366,8 +367,8 @@ def get_service_status():
 
     services.append({
         "name": "Vera Router",
-        "status": "simulation",
-        "detail": "Local-first route decisions are simulated; execution is disabled",
+        "status": "enabled" if cloud_routing["effective_enabled"] else "disabled",
+        "detail": "Cloud API access is owner-controlled; route decisions remain simulated",
     })
 
     services.append({
@@ -506,7 +507,10 @@ def status():
 
 @app.get("/api/openai/status")
 def openai_status():
-    return openai_service.get_status()
+    return {
+        **openai_service.get_status(),
+        "cloud_routing_enabled": router_service.cloud_routing_enabled(),
+    }
 
 
 @app.get("/api/budget/status")
@@ -922,16 +926,61 @@ def test_alert():
 
     return result
 
-@app.post("/api/analyze")
-def analyze():
-    data = build_status()
-
+def run_guarded_cloud_response(prompt: str, max_output_tokens: int, domain: str = "general"):
+    if not router_service.cloud_routing_enabled():
+        raise RuntimeError("Cloud routing is disabled.")
     client = openai_service.get_client()
     if client is None:
-        return {
-            "analysis": "OpenAI API key is not configured yet. Add OPENAI_API_KEY to /opt/command-center/.env and rebuild the container.",
-            "provider": "local",
-        }
+        raise RuntimeError("OpenAI API key is not configured.")
+
+    input_tokens = budget_service.estimate_live_input_tokens(prompt)
+    estimated_cost = budget_service.estimate_cost(input_tokens, max_output_tokens)
+    policy = policy_service.evaluate_domain_request(
+        domain=domain,
+        provider="openai",
+        model=openai_service.get_model(),
+        estimated_cost_usd=estimated_cost,
+    )
+    if not policy["allowed"]:
+        raise RuntimeError(policy["reason"])
+
+    reservation = budget_service.reserve_live(
+        prompt=prompt,
+        max_output_tokens=max_output_tokens,
+        domain=domain,
+        model=openai_service.get_model(),
+    )
+    try:
+        response = client.responses.create(
+            model=openai_service.get_model(),
+            input=prompt,
+            max_output_tokens=max_output_tokens,
+            store=False,
+        )
+        if getattr(response, "status", None) != "completed":
+            raise RuntimeError(f"OpenAI response ended with status: {getattr(response, 'status', 'unknown')}")
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            budget_service.retain_live_reservation(reservation["id"], "API usage was unavailable")
+            ledger = reservation
+        else:
+            ledger = budget_service.settle_live(
+                reservation["id"],
+                input_tokens=int(getattr(usage, "input_tokens", reservation["input_tokens"])),
+                output_tokens=int(getattr(usage, "output_tokens", reservation["output_tokens"])),
+            )
+        return response, ledger
+    except Exception as exc:
+        budget_service.retain_live_reservation(reservation["id"], type(exc).__name__)
+        raise
+
+
+@app.post("/api/analyze")
+def analyze(session: dict = Depends(require_csrf)):
+    if not router_service.cloud_routing_enabled():
+        return {"analysis": "Cloud routing is off. Local status and recommendations remain available.", "provider": "local"}
+
+    data = build_status()
 
     prompt = f"""
 You are Command Center, a read-only home server operations assistant.
@@ -950,27 +999,23 @@ Server status JSON:
 """
 
     try:
-        response = client.responses.create(
-            model=openai_service.get_model(),
-            input=prompt,
-            max_output_tokens=400,
-        )
-
-        return {"analysis": response.output_text}
+        response, ledger = run_guarded_cloud_response(prompt, 400)
+        return {
+            "analysis": response.output_text,
+            "provider": "openai",
+            "model": openai_service.get_model(),
+            "cost_usd": ledger.get("actual_cost_usd", ledger.get("reserved_cost_usd")),
+        }
     except Exception as e:
         return {"analysis": f"OpenAI analysis failed: {str(e)}"}
 
 
 @app.post("/api/briefing")
-def briefing():
-    data = build_status()
+def briefing(session: dict = Depends(require_csrf)):
+    if not router_service.cloud_routing_enabled():
+        return {"briefing": "Cloud routing is off. Local system status remains available.", "provider": "local"}
 
-    client = openai_service.get_client()
-    if client is None:
-        return {
-            "briefing": "OpenAI API key is not configured yet.",
-            "provider": "local",
-        }
+    data = build_status()
 
     briefing_payload = {
         "system": {
@@ -998,13 +1043,13 @@ Daily briefing JSON:
 """
 
     try:
-        response = client.responses.create(
-            model=openai_service.get_model(),
-            input=prompt,
-            max_output_tokens=500,
-        )
-
-        return {"briefing": response.output_text}
+        response, ledger = run_guarded_cloud_response(prompt, 500)
+        return {
+            "briefing": response.output_text,
+            "provider": "openai",
+            "model": openai_service.get_model(),
+            "cost_usd": ledger.get("actual_cost_usd", ledger.get("reserved_cost_usd")),
+        }
     except Exception as e:
         return {"briefing": f"Daily briefing failed: {str(e)}"}
 

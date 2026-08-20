@@ -63,6 +63,31 @@ class BudgetServiceTests(unittest.TestCase):
         self.assertEqual(config["limits"]["daily_usd"], 0.50)
         self.assertEqual(config["limits"]["monthly_usd"], 5.00)
 
+    def test_live_request_reserves_then_settles_reported_usage(self):
+        reservation = budget_service.reserve_live(
+            prompt="Hello Vera",
+            max_output_tokens=400,
+            domain="general",
+            model="gpt-4.1-mini",
+        )
+        reserved_status = budget_service.get_status()
+        self.assertGreater(reserved_status["spent"]["daily_usd"], 0)
+
+        settled = budget_service.settle_live(
+            reservation["id"], input_tokens=6, output_tokens=20
+        )
+        self.assertLess(settled["actual_cost_usd"], reservation["reserved_cost_usd"])
+
+    def test_live_reservation_fails_closed_at_limit(self):
+        with patch.dict(os.environ, {"VERA_BUDGET_PER_REQUEST_USD": "0"}):
+            with self.assertRaises(budget_service.BudgetDeniedError):
+                budget_service.reserve_live(
+                    prompt="Hello Vera",
+                    max_output_tokens=400,
+                    domain="general",
+                    model="gpt-4.1-mini",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

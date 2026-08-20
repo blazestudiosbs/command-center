@@ -1,7 +1,7 @@
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from services import budget_service, policy_service
 from storage import connection
@@ -10,6 +10,14 @@ from storage import connection
 DEFAULT_LOCAL_MODEL = "qwen3:4b"
 DEFAULT_CLOUD_MODEL = "gpt-4.1-mini"
 DEFAULT_LOCAL_CONFIDENCE_THRESHOLD = 0.70
+
+
+class CloudRoutingVersionConflictError(RuntimeError):
+    pass
+
+
+class CloudRoutingUnavailableError(RuntimeError):
+    pass
 
 
 def _bounded_float(name: str, default: float) -> float:
@@ -24,6 +32,7 @@ def _bounded_float(name: str, default: float) -> float:
 
 
 def get_config() -> dict[str, Any]:
+    cloud_state = get_cloud_routing_state()
     return {
         "mode": "simulation",
         "strategy": "local_first",
@@ -33,8 +42,78 @@ def get_config() -> dict[str, Any]:
             "VERA_ROUTER_LOCAL_CONFIDENCE_THRESHOLD", DEFAULT_LOCAL_CONFIDENCE_THRESHOLD
         ),
         "execution_enabled": False,
-        "cloud_calls_enabled": False,
+        "cloud_routing_enabled": cloud_state["enabled"],
     }
+
+
+def get_cloud_routing_state() -> dict[str, Any]:
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM cloud_routing_state WHERE id = 'global'"
+        ).fetchone()
+    if not row:
+        raise RuntimeError("Cloud routing state is unavailable.")
+    state = dict(row)
+    state["enabled"] = bool(state["enabled"])
+    state["effective_enabled"] = (
+        state["enabled"] and policy_service.get_control_state()["mode"] == "active"
+    )
+    return state
+
+
+def set_cloud_routing(
+    *,
+    enabled: bool,
+    actor_user_id: Optional[str],
+    reason: str,
+    expected_version: Optional[int] = None,
+) -> dict[str, Any]:
+    cleaned_reason = reason.strip()[:500]
+    if enabled and policy_service.get_control_state()["mode"] != "active":
+        raise CloudRoutingUnavailableError(
+            "Cloud routing can only be enabled while Vera autonomy is active."
+        )
+    with connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        current = conn.execute(
+            "SELECT * FROM cloud_routing_state WHERE id = 'global'"
+        ).fetchone()
+        if not current:
+            raise RuntimeError("Cloud routing state is unavailable.")
+        if expected_version is not None and current["version"] != expected_version:
+            raise CloudRoutingVersionConflictError(
+                "Cloud routing state changed; reload before retrying."
+            )
+        if bool(current["enabled"]) == bool(enabled):
+            state = dict(current)
+            state["enabled"] = bool(state["enabled"])
+            state["effective_enabled"] = (
+                state["enabled"] and policy_service.get_control_state()["mode"] == "active"
+            )
+            return state
+        next_version = current["version"] + 1
+        changed_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        conn.execute(
+            """
+            UPDATE cloud_routing_state
+            SET enabled = ?, changed_by_user_id = ?, reason = ?, version = ?, changed_utc = ?
+            WHERE id = 'global'
+            """,
+            (int(enabled), actor_user_id, cleaned_reason, next_version, changed_utc),
+        )
+        row = conn.execute(
+            "SELECT * FROM cloud_routing_state WHERE id = 'global'"
+        ).fetchone()
+    state = dict(row)
+    state["enabled"] = bool(state["enabled"])
+    state["effective_enabled"] = (
+        state["enabled"] and policy_service.get_control_state()["mode"] == "active"
+    )
+    return state
+
+
+def cloud_routing_enabled() -> bool:
+    return get_cloud_routing_state()["effective_enabled"]
 
 
 def get_status() -> dict[str, Any]:
@@ -51,13 +130,14 @@ def get_status() -> dict[str, Any]:
         ).fetchone()
     return {
         **config,
+        "cloud_routing": get_cloud_routing_state(),
         "decisions": {
             "total": int(row["total"]),
             "local": int(row["local"]),
             "would_escalate": int(row["escalations"]),
             "blocked_or_waiting": int(row["blocked"]),
         },
-        "detail": "Routes are simulated and recorded; no model request is executed.",
+        "detail": "Route decisions remain simulated; the cloud toggle gates approved live API endpoints.",
     }
 
 

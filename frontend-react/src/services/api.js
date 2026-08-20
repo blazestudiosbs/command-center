@@ -41,6 +41,21 @@ export async function changeVeraControl(action, reason, expectedVersion) {
   return res.data.control;
 }
 
+export async function getCloudRouting() {
+  const res = await axios.get("/api/vera/router/cloud");
+  return res.data.cloud_routing;
+}
+
+export async function changeCloudRouting(enabled, reason, expectedVersion) {
+  const action = enabled ? "enable" : "disable";
+  const res = await axios.post(
+    `/api/vera/router/cloud/${action}`,
+    { reason, expected_version: expectedVersion },
+    { headers: csrfHeaders() },
+  );
+  return res.data.cloud_routing;
+}
+
 export async function getVeraPermissions() {
   const res = await axios.get("/api/vera/permissions");
   return res.data.permissions;
@@ -66,12 +81,12 @@ export async function getStatus() {
 }
 
 export async function getAnalysis() {
-  const res = await axios.post("/api/analyze");
+  const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;
 }
 
 export async function getBriefing() {
-  const res = await axios.post("/api/briefing");
+  const res = await axios.post("/api/briefing", null, { headers: csrfHeaders() });
   return res.data.briefing;
 }
 

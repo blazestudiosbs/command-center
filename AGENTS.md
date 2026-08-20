@@ -54,6 +54,9 @@ Backend development:
 - Authenticated policy inspection is available through `/api/vera/policies/domains` and `/api/vera/policies/evaluate`.
 - Local-first routing simulation is owned by `backend/services/router_service.py` and records decisions without executing either local or cloud models.
 - Authenticated router inspection is available through `/api/vera/router/status`, `/api/vera/router/simulate`, and `/api/vera/router/decisions`.
+- Cloud API access defaults off and is persisted through `cloud_routing_state`; authenticated CSRF-protected controls live at `/api/vera/router/cloud/*`.
+- Live `/api/analyze` and `/api/briefing` calls require authentication, the cloud toggle, domain policy approval, and an atomic budget reservation.
+- Live OpenAI requests use `max_retries=0`; uncertain failures retain the worst-case reservation until reviewed rather than returning potentially spent budget.
 - Preserve existing prompt structure and fallback messaging when updating AI behaviors.
 
 ## Agent guidance

@@ -38,7 +38,7 @@ def get_client() -> Optional[OpenAI]:
     api_key = _api_key()
     if api_key is None:
         return None
-    return OpenAI(api_key=api_key, timeout=30.0, max_retries=1)
+    return OpenAI(api_key=api_key, timeout=30.0, max_retries=0)
 
 
 def get_model() -> str:
