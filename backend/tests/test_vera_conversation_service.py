@@ -53,6 +53,15 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertFalse(result["duplicate"])
         self.assertTrue(duplicate["duplicate"])
         self.assertEqual(post.call_count, 1)
+        sent_messages = post.call_args.kwargs["json"]["messages"]
+        self.assertTrue(sent_messages[-1]["content"].endswith("/no_think"))
+
+    def test_rejects_unclosed_or_untagged_reasoning(self):
+        self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
+        self.assertEqual(
+            vera_conversation_service._clean_model_text("Okay, let's tackle this. The answer should be short."),
+            "",
+        )
 
 
 if __name__ == "__main__":
