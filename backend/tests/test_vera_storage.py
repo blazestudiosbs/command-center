@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from services import audit_service, auth_service, conversation_service
+from services import audit_service, auth_service, conversation_service, discord_binding_service
 from storage import connection, initialize_storage
 
 
@@ -43,7 +43,10 @@ class VeraStorageTests(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 ).fetchall()
             }
-        self.assertEqual([(row[0], row[1]) for row in migrations], [(1, "auth"), (2, "vera_core")])
+        self.assertEqual(
+            [(row[0], row[1]) for row in migrations],
+            [(1, "auth"), (2, "vera_core"), (3, "discord_gateway")],
+        )
         self.assertTrue(
             {
                 "users",
@@ -53,6 +56,7 @@ class VeraStorageTests(unittest.TestCase):
                 "control_state",
                 "permissions",
                 "audit_events",
+                "conversation_bindings",
             }.issubset(tables)
         )
 
@@ -130,6 +134,19 @@ class VeraStorageTests(unittest.TestCase):
                 "SELECT mode, version FROM control_state WHERE id = 'global'"
             ).fetchone()
         self.assertEqual((state["mode"], state["version"]), ("active", 1))
+
+    def test_discord_channel_binds_to_one_persistent_conversation_and_user(self):
+        first = discord_binding_service.get_or_create(
+            owner_user_id="owner", guild_id="guild-1", channel_id="channel-1", discord_user_id="user-1"
+        )
+        again = discord_binding_service.get_or_create(
+            owner_user_id="owner", guild_id="guild-1", channel_id="channel-1", discord_user_id="user-1"
+        )
+        self.assertEqual(first["conversation_id"], again["conversation_id"])
+        with self.assertRaises(discord_binding_service.DiscordIdentityDeniedError):
+            discord_binding_service.get_or_create(
+                owner_user_id="owner", guild_id="guild-1", channel_id="channel-1", discord_user_id="user-2"
+            )
 
 
 class PhaseOneUpgradeTests(unittest.TestCase):

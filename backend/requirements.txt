@@ -4,3 +4,4 @@ psutil
 docker
 openai
 requests
+discord.py>=2.6,<3

@@ -6,3 +6,4 @@ __pycache__/
 config/tasks.json
 config/task_runs/
 config/vera.db*
+secrets/discord_bot_token

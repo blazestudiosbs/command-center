@@ -26,6 +26,26 @@ services:
     container_name: command-center-ui
     network_mode: host
     restart: unless-stopped
+  vera-discord:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: vera-discord
+    command: ["python", "discord_worker.py"]
+    network_mode: host
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-mini}
+      - VERA_DATABASE_PATH=/app/config/vera.db
+      - VERA_DISCORD_GUILD_ID=1537268263782715392
+      - VERA_DISCORD_CHANNEL_ID=1539806521280569424
+      - VERA_DISCORD_TOKEN_FILE=/run/secrets/discord_bot_token
+    volumes:
+      - ./config:/app/config
+      - ./secrets:/run/secrets:ro
+    depends_on:
+      - command-center
+    restart: unless-stopped
   development-worker:
     build:
       context: .
