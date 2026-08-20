@@ -43,3 +43,12 @@ def get_client() -> Optional[OpenAI]:
 
 def get_model() -> str:
     return get_status()["model"]
+
+
+def get_response_status(response) -> tuple[str, Optional[str]]:
+    status = getattr(response, "status", None) or "unknown"
+    details = getattr(response, "incomplete_details", None)
+    reason = getattr(details, "reason", None)
+    if reason is not None and hasattr(reason, "value"):
+        reason = reason.value
+    return str(status), str(reason) if reason is not None else None

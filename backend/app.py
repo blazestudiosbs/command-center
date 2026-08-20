@@ -957,22 +957,37 @@ def run_guarded_cloud_response(prompt: str, max_output_tokens: int, domain: str 
             max_output_tokens=max_output_tokens,
             store=False,
         )
-        if getattr(response, "status", None) != "completed":
-            raise RuntimeError(f"OpenAI response ended with status: {getattr(response, 'status', 'unknown')}")
-        usage = getattr(response, "usage", None)
-        if usage is None:
-            budget_service.retain_live_reservation(reservation["id"], "API usage was unavailable")
-            ledger = reservation
-        else:
-            ledger = budget_service.settle_live(
-                reservation["id"],
-                input_tokens=int(getattr(usage, "input_tokens", reservation["input_tokens"])),
-                output_tokens=int(getattr(usage, "output_tokens", reservation["output_tokens"])),
-            )
-        return response, ledger
     except Exception as exc:
         budget_service.retain_live_reservation(reservation["id"], type(exc).__name__)
         raise
+
+    status, incomplete_reason = openai_service.get_response_status(response)
+    usage = getattr(response, "usage", None)
+    settlement_reason = "Settled from API-reported token usage."
+    if status != "completed":
+        settlement_reason = (
+            f"OpenAI response ended with status {status}"
+            + (f": {incomplete_reason}." if incomplete_reason else ".")
+        )
+
+    if usage is None:
+        budget_service.retain_live_reservation(
+            reservation["id"],
+            f"{settlement_reason} API usage was unavailable.",
+        )
+        ledger = reservation
+    else:
+        ledger = budget_service.settle_live(
+            reservation["id"],
+            input_tokens=int(getattr(usage, "input_tokens", reservation["input_tokens"])),
+            output_tokens=int(getattr(usage, "output_tokens", reservation["output_tokens"])),
+            reason=settlement_reason,
+        )
+
+    if status != "completed":
+        detail = f" ({incomplete_reason})" if incomplete_reason else ""
+        raise RuntimeError(f"OpenAI response ended with status: {status}{detail}")
+    return response, ledger
 
 
 @app.post("/api/analyze")
@@ -999,7 +1014,7 @@ Server status JSON:
 """
 
     try:
-        response, ledger = run_guarded_cloud_response(prompt, 400)
+        response, ledger = run_guarded_cloud_response(prompt, 800)
         return {
             "analysis": response.output_text,
             "provider": "openai",

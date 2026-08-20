@@ -1,5 +1,7 @@
 import os
 import unittest
+from enum import Enum
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from services import openai_service
@@ -43,6 +45,19 @@ class OpenAIServiceTests(unittest.TestCase):
             self.assertEqual(status["status"], "configured")
             self.assertEqual(status["model"], "test-model")
             self.assertNotIn(secret, str(status))
+
+    def test_response_status_includes_incomplete_reason(self):
+        class Reason(Enum):
+            MAX_OUTPUT_TOKENS = "max_output_tokens"
+
+        response = SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason=Reason.MAX_OUTPUT_TOKENS),
+        )
+        self.assertEqual(
+            openai_service.get_response_status(response),
+            ("incomplete", "max_output_tokens"),
+        )
 
 
 if __name__ == "__main__":

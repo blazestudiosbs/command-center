@@ -260,17 +260,22 @@ def reserve_live(
     }
 
 
-def settle_live(entry_id: str, *, input_tokens: int, output_tokens: int) -> dict[str, Any]:
+def settle_live(
+    entry_id: str,
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    reason: str = "Settled from API-reported token usage.",
+) -> dict[str, Any]:
     actual_cost = estimate_cost(input_tokens, output_tokens)
     with connection() as conn:
         conn.execute(
             """
             UPDATE budget_ledger
-            SET input_tokens = ?, output_tokens = ?, actual_cost_usd = ?,
-                reason = 'Settled from API-reported token usage.'
+            SET input_tokens = ?, output_tokens = ?, actual_cost_usd = ?, reason = ?
             WHERE id = ? AND mode = 'live'
             """,
-            (max(0, input_tokens), max(0, output_tokens), actual_cost, entry_id),
+            (max(0, input_tokens), max(0, output_tokens), actual_cost, reason, entry_id),
         )
         row = conn.execute(
             "SELECT * FROM budget_ledger WHERE id = ?",

@@ -74,9 +74,16 @@ class BudgetServiceTests(unittest.TestCase):
         self.assertGreater(reserved_status["spent"]["daily_usd"], 0)
 
         settled = budget_service.settle_live(
-            reservation["id"], input_tokens=6, output_tokens=20
+            reservation["id"],
+            input_tokens=6,
+            output_tokens=20,
+            reason="OpenAI response ended with status incomplete: max_output_tokens.",
         )
         self.assertLess(settled["actual_cost_usd"], reservation["reserved_cost_usd"])
+        self.assertEqual(
+            settled["reason"],
+            "OpenAI response ended with status incomplete: max_output_tokens.",
+        )
 
     def test_live_reservation_fails_closed_at_limit(self):
         with patch.dict(os.environ, {"VERA_BUDGET_PER_REQUEST_USD": "0"}):
