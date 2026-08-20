@@ -1,7 +1,6 @@
 import os
 import tempfile
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from services import auth_service, conversation_service, vera_conversation_service
@@ -16,8 +15,8 @@ class VeraConversationServiceTests(unittest.TestCase):
             {
                 "VERA_DATABASE_PATH": os.path.join(self.temp_dir.name, "vera.db"),
                 "VERA_ADMIN_PASSWORD_HASH": auth_service.hash_password("correct horse battery staple"),
-                "OPENAI_API_KEY": "test-key",
-                "OPENAI_MODEL": "test-model",
+                "VERA_LOCAL_MODEL": "test-model",
+                "VERA_OLLAMA_URL": "http://ollama.test",
             },
             clear=False,
         )
@@ -29,9 +28,9 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.environment.stop()
         self.temp_dir.cleanup()
 
-    @patch("services.vera_conversation_service.OpenAI")
-    def test_response_persists_user_and_assistant_and_is_idempotent(self, openai):
-        openai.return_value.responses.create.return_value = SimpleNamespace(output_text="Hello Bruce")
+    @patch("services.vera_conversation_service.requests.post")
+    def test_response_persists_user_and_assistant_and_is_idempotent(self, post):
+        post.return_value.json.return_value = {"message": {"content": "Hello Bruce"}}
         conversation = conversation_service.create_conversation("owner", "Discord")
         result = vera_conversation_service.respond(
             owner_user_id="owner",
@@ -51,7 +50,7 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertEqual([message["content"] for message in messages], ["Hello Vera", "Hello Bruce"])
         self.assertFalse(result["duplicate"])
         self.assertTrue(duplicate["duplicate"])
-        self.assertEqual(openai.return_value.responses.create.call_count, 1)
+        self.assertEqual(post.call_count, 1)
 
 
 if __name__ == "__main__":

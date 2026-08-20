@@ -1,6 +1,6 @@
 import os
 
-from openai import OpenAI
+import requests
 
 from services import audit_service, conversation_service, policy_service
 
@@ -22,7 +22,8 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     if user_message["id"] != existing[-1]["id"]:
         return {"duplicate": True, "user_message": user_message, "assistant_message": None}
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("VERA_LOCAL_MODEL", "qwen3:4b")
+    model_url = os.getenv("VERA_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
     input_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     input_messages.extend(
         {"role": message["role"], "content": message["content"]}
@@ -30,11 +31,20 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
         if message["role"] in {"user", "assistant"}
     )
     try:
-        response = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=45.0, max_retries=1).responses.create(
-            model=model,
-            input=input_messages,
+        response = requests.post(
+            f"{model_url}/api/chat",
+            json={
+                "model": model,
+                "messages": input_messages,
+                "stream": False,
+                "think": False,
+                "keep_alive": "30m",
+                "options": {"temperature": 0.4, "num_ctx": 8192},
+            },
+            timeout=180,
         )
-        text = (response.output_text or "").strip()
+        response.raise_for_status()
+        text = (response.json().get("message", {}).get("content") or "").strip()
         if not text:
             raise RuntimeError("Vera returned an empty response.")
         assistant = conversation_service.add_message(
