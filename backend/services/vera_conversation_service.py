@@ -132,7 +132,10 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 domain="conversation",
                 instructions=SYSTEM_PROMPT.replace("/no_think\n", ""),
             )
-            text = _clean_model_text(response.output_text or "", require_final_envelope=True)
+            # Responses API output_text is the SDK's final user-visible text helper.
+            # Keep the envelope mandatory for local models, which may mix reasoning
+            # into content, while still applying legacy reasoning markers here.
+            text = _clean_model_text(response.output_text or "")
             if not text:
                 raise RuntimeError("Vera cloud fallback returned an empty response.")
             selected_model = openai_service.get_model()

@@ -101,7 +101,7 @@ class VeraConversationServiceTests(unittest.TestCase):
         self, _post, _enabled, run_guarded, _model
     ):
         run_guarded.return_value = (
-            SimpleNamespace(output_text="<vera_final>Cloud fallback response</vera_final>"),
+            SimpleNamespace(output_text="Cloud fallback response"),
             {"actual_cost_usd": 0.001},
         )
         conversation = conversation_service.create_conversation("owner", "Discord")
