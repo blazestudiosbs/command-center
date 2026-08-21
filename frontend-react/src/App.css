@@ -182,6 +182,34 @@ body {
   gap: 14px;
 }
 
+.journal-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.journal-summary span {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #263449;
+  border-radius: 12px;
+  background: #111827;
+}
+
+.journal-summary small {
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.journal-summary strong {
+  font-size: 1.25rem;
+}
+
+.journal-load-more {
+  justify-self: center;
+}
+
 .journal-entry {
   padding: 18px;
   border: 1px solid #263449;

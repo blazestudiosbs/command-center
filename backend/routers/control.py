@@ -237,5 +237,9 @@ def get_audit(limit: int = 100, session: dict = Depends(current_session)):
 
 
 @router.get("/journal")
-def get_decision_journal(limit: int = 100, session: dict = Depends(current_session)):
-    return {"entries": decision_journal_service.list_entries(limit)}
+def get_decision_journal(
+    limit: int = 50,
+    offset: int = 0,
+    session: dict = Depends(current_session),
+):
+    return decision_journal_service.get_page(limit=limit, offset=offset)

@@ -1,6 +1,7 @@
+import json
 from typing import Any
 
-from services import audit_service, budget_service, router_service
+from storage import connection
 
 
 def _audit_entry(event: dict[str, Any]) -> dict[str, Any]:
@@ -58,13 +59,84 @@ def _simulation_entry(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def list_entries(limit: int = 100) -> list[dict[str, Any]]:
-    safe_limit = max(1, min(int(limit), 200))
-    audit = [
+def _source_records() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    with connection() as conn:
+        audit_rows = conn.execute(
+            """
+            SELECT * FROM audit_events
+            WHERE action LIKE 'conversation.%'
+               OR action LIKE 'cloud_routing.%'
+               OR action LIKE 'control.%'
+               OR action LIKE 'permission.%'
+            ORDER BY created_utc DESC, id DESC
+            """
+        ).fetchall()
+        budget_rows = conn.execute(
+            "SELECT * FROM budget_ledger ORDER BY created_utc DESC, id DESC"
+        ).fetchall()
+        route_rows = conn.execute(
+            "SELECT * FROM routing_decisions ORDER BY created_utc DESC, id DESC"
+        ).fetchall()
+    audit = []
+    for row in audit_rows:
+        event = dict(row)
+        event["details"] = json.loads(event.pop("details_json"))
+        audit.append(event)
+    return audit, [dict(row) for row in budget_rows], [dict(row) for row in route_rows]
+
+
+def _group_audit_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    route_request_ids = {
+        event["request_id"]
+        for event in events
+        if event["action"] == "conversation.route" and event.get("request_id")
+    }
+    return [
         _audit_entry(event)
-        for event in audit_service.list_events(safe_limit)
-        if event["action"].startswith(("conversation.", "cloud_routing.", "control.", "permission."))
+        for event in events
+        if not (
+            event["action"] == "conversation.response"
+            and event.get("request_id") in route_request_ids
+        )
     ]
-    budget = [_budget_entry(entry) for entry in budget_service.list_ledger(safe_limit)]
-    routes = [_simulation_entry(entry) for entry in router_service.list_decisions(safe_limit)]
-    return sorted(audit + budget + routes, key=lambda item: item["created_utc"], reverse=True)[:safe_limit]
+
+
+def get_page(limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    safe_limit = max(1, min(int(limit), 100))
+    safe_offset = max(0, int(offset))
+    audit, budget, routes = _source_records()
+    entries = sorted(
+        _group_audit_events(audit)
+        + [_budget_entry(entry) for entry in budget]
+        + [_simulation_entry(entry) for entry in routes],
+        key=lambda item: item["created_utc"],
+        reverse=True,
+    )
+    summary = {
+        "total_entries": len(entries),
+        "local_routes": sum(
+            entry["kind"] == "route" and entry["provider"] == "local" and entry["decision"] == "succeeded"
+            for entry in entries
+        ),
+        "cloud_routes": sum(
+            entry["kind"] == "route" and entry["provider"] == "openai" and entry["decision"] == "succeeded"
+            for entry in entries
+        ),
+        "failures": sum(entry["decision"] == "failed" for entry in entries),
+        "actual_cloud_cost_usd": round(
+            sum(entry["actual_cost_usd"] or 0 for entry in entries if entry["kind"] == "cloud_request"),
+            8,
+        ),
+    }
+    page = entries[safe_offset:safe_offset + safe_limit]
+    return {
+        "entries": page,
+        "summary": summary,
+        "limit": safe_limit,
+        "offset": safe_offset,
+        "has_more": safe_offset + len(page) < len(entries),
+    }
+
+
+def list_entries(limit: int = 100) -> list[dict[str, Any]]:
+    return get_page(limit=limit)["entries"]
