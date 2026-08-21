@@ -86,6 +86,12 @@ class VeraConversationServiceTests(unittest.TestCase):
             ),
             "Safe answer",
         )
+        self.assertEqual(
+            vera_conversation_service._clean_model_text(
+                "We are in a Discord conversation. The user (Bruce) is asking..."
+            ),
+            "",
+        )
 
     @patch("services.vera_conversation_service.openai_service.get_model", return_value="gpt-4.1-mini")
     @patch("services.vera_conversation_service.cloud_response_service.run_guarded")

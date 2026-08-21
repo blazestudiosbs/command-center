@@ -36,6 +36,9 @@ def _clean_model_text(value: str, *, require_final_envelope: bool = False) -> st
         "first, i need to",
         "the answer should",
         "the user is asking",
+        "we are in a discord conversation",
+        "the user (bruce) is asking",
+        "let me re-read the user's message",
     )
     lowered = cleaned.lower()
     if any(marker in lowered for marker in reasoning_markers):
