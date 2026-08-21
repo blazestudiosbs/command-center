@@ -32,7 +32,7 @@ class VeraConversationServiceTests(unittest.TestCase):
     @patch("services.vera_conversation_service.requests.post")
     def test_response_persists_user_and_assistant_and_is_idempotent(self, post):
         post.return_value.json.return_value = {
-            "message": {"content": "<think>private reasoning</think>\nHello Bruce"}
+            "message": {"content": "private reasoning\n<vera_final>Hello Bruce</vera_final>"}
         }
         conversation = conversation_service.create_conversation("owner", "Discord")
         result = vera_conversation_service.respond(
@@ -72,6 +72,20 @@ class VeraConversationServiceTests(unittest.TestCase):
             vera_conversation_service._clean_model_text("Okay, let's tackle this. The answer should be short."),
             "",
         )
+        self.assertEqual(
+            vera_conversation_service._clean_model_text(
+                "We are in a Discord conversation. The user (Bruce) is asking...",
+                require_final_envelope=True,
+            ),
+            "",
+        )
+        self.assertEqual(
+            vera_conversation_service._clean_model_text(
+                "analysis outside<vera_final>Safe answer</vera_final>",
+                require_final_envelope=True,
+            ),
+            "Safe answer",
+        )
 
     @patch("services.vera_conversation_service.openai_service.get_model", return_value="gpt-4.1-mini")
     @patch("services.vera_conversation_service.cloud_response_service.run_guarded")
@@ -81,7 +95,7 @@ class VeraConversationServiceTests(unittest.TestCase):
         self, _post, _enabled, run_guarded, _model
     ):
         run_guarded.return_value = (
-            SimpleNamespace(output_text="Cloud fallback response"),
+            SimpleNamespace(output_text="<vera_final>Cloud fallback response</vera_final>"),
             {"actual_cost_usd": 0.001},
         )
         conversation = conversation_service.create_conversation("owner", "Discord")
