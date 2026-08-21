@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from services import auth_service, conversation_service, vera_conversation_service
@@ -62,6 +63,46 @@ class VeraConversationServiceTests(unittest.TestCase):
             vera_conversation_service._clean_model_text("Okay, let's tackle this. The answer should be short."),
             "",
         )
+
+    @patch("services.vera_conversation_service.openai_service.get_model", return_value="gpt-4.1-mini")
+    @patch("services.vera_conversation_service.cloud_response_service.run_guarded")
+    @patch("services.vera_conversation_service.router_service.cloud_routing_enabled", return_value=True)
+    @patch("services.vera_conversation_service.requests.post", side_effect=RuntimeError("local unavailable"))
+    def test_local_failure_uses_guarded_cloud_only_when_enabled(
+        self, _post, _enabled, run_guarded, _model
+    ):
+        run_guarded.return_value = (
+            SimpleNamespace(output_text="Cloud fallback response"),
+            {"actual_cost_usd": 0.001},
+        )
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(
+            owner_user_id="owner",
+            conversation_id=conversation["id"],
+            content="Hello Vera",
+            client_message_id="discord:cloud-1",
+            source="discord",
+        )
+        assistant = result["assistant_message"]
+        self.assertEqual(assistant["content"], "Cloud fallback response")
+        self.assertEqual(assistant["model"], "gpt-4.1-mini")
+        self.assertEqual(assistant["metadata"]["provider"], "openai")
+        self.assertEqual(run_guarded.call_args.kwargs["domain"], "conversation")
+
+    @patch("services.vera_conversation_service.cloud_response_service.run_guarded")
+    @patch("services.vera_conversation_service.router_service.cloud_routing_enabled", return_value=False)
+    @patch("services.vera_conversation_service.requests.post", side_effect=RuntimeError("local unavailable"))
+    def test_local_failure_does_not_use_cloud_when_disabled(self, _post, _enabled, run_guarded):
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        with self.assertRaisesRegex(RuntimeError, "local unavailable"):
+            vera_conversation_service.respond(
+                owner_user_id="owner",
+                conversation_id=conversation["id"],
+                content="Hello Vera",
+                client_message_id="discord:local-only-1",
+                source="discord",
+            )
+        run_guarded.assert_not_called()
 
 
 if __name__ == "__main__":

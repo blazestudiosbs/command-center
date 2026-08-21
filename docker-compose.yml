@@ -43,6 +43,8 @@ services:
     container_name: vera-discord
     command: ["python", "discord_worker.py"]
     network_mode: host
+    env_file:
+      - .env
     environment:
       - VERA_DATABASE_PATH=/app/config/vera.db
       - VERA_LOCAL_MODEL=qwen3:4b

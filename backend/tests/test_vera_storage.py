@@ -53,6 +53,7 @@ class VeraStorageTests(unittest.TestCase):
                 (5, "domain_policies"),
                 (6, "routing_decisions"),
                 (7, "cloud_routing_control"),
+                (8, "conversation_cloud_policy"),
             ],
         )
         self.assertTrue(

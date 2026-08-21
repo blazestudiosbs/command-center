@@ -2,7 +2,7 @@ import os
 
 import requests
 
-from services import audit_service, conversation_service, policy_service
+from services import audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service
 
 
 SYSTEM_PROMPT = """/no_think
@@ -55,6 +55,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
         input_messages.append({"role": message["role"], "content": message_content})
     # Qwen's non-thinking directive is most reliable on the final user turn.
     input_messages[-1]["content"] = f'{input_messages[-1]["content"]}\n\n/no_think'
+    local_error = None
     try:
         response = requests.post(
             f"{model_url}/api/chat",
@@ -72,13 +73,84 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
         text = _clean_model_text(response.json().get("message", {}).get("content") or "")
         if not text:
             raise RuntimeError("Vera returned an empty response.")
+        selected_model = model
+        selected_provider = "local"
+    except Exception as exc:
+        local_error = exc
+        if not router_service.cloud_routing_enabled():
+            audit_service.append_event(
+                actor_user_id=owner_user_id,
+                action="conversation.route",
+                resource_type="conversation",
+                resource_id=conversation_id,
+                outcome="failed",
+                request_id=client_message_id,
+                details={"source": source, "route": "local", "error_type": type(exc).__name__},
+            )
+            raise
+        try:
+            cloud_messages = []
+            for message in existing[-20:]:
+                if message["role"] not in {"user", "assistant"}:
+                    continue
+                message_content = _clean_model_text(message["content"])
+                if message_content:
+                    cloud_messages.append({"role": message["role"], "content": message_content})
+            budget_text = SYSTEM_PROMPT + "\n" + "\n".join(
+                f'{message["role"]}: {message["content"]}' for message in cloud_messages
+            )
+            response, _ledger = cloud_response_service.run_guarded(
+                input_data=cloud_messages,
+                budget_text=budget_text,
+                max_output_tokens=500,
+                domain="conversation",
+                instructions=SYSTEM_PROMPT.replace("/no_think\n", ""),
+            )
+            text = _clean_model_text(response.output_text or "")
+            if not text:
+                raise RuntimeError("Vera cloud fallback returned an empty response.")
+            selected_model = openai_service.get_model()
+            selected_provider = "openai"
+        except Exception as cloud_exc:
+            audit_service.append_event(
+                actor_user_id=owner_user_id,
+                action="conversation.route",
+                resource_type="conversation",
+                resource_id=conversation_id,
+                outcome="failed",
+                request_id=client_message_id,
+                details={
+                    "source": source,
+                    "route": "cloud_fallback",
+                    "local_error_type": type(local_error).__name__,
+                    "cloud_error_type": type(cloud_exc).__name__,
+                },
+            )
+            raise
+
+    audit_service.append_event(
+        actor_user_id=owner_user_id,
+        action="conversation.route",
+        resource_type="conversation",
+        resource_id=conversation_id,
+        outcome="succeeded",
+        request_id=client_message_id,
+        details={
+            "source": source,
+            "route": selected_provider,
+            "model": selected_model,
+            "local_error_type": type(local_error).__name__ if local_error else None,
+        },
+    )
+
+    try:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
             owner_user_id=owner_user_id,
             role="assistant",
             content=text,
-            model=model,
-            metadata={"source": source},
+            model=selected_model,
+            metadata={"source": source, "provider": selected_provider},
         )
         audit_service.append_event(
             actor_user_id=owner_user_id,
@@ -87,7 +159,12 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
             resource_id=conversation_id,
             outcome="succeeded",
             request_id=client_message_id,
-            details={"source": source, "model": model},
+            details={
+                "source": source,
+                "model": selected_model,
+                "provider": selected_provider,
+                "local_error_type": type(local_error).__name__ if local_error else None,
+            },
         )
         return {"duplicate": False, "user_message": user_message, "assistant_message": assistant}
     except Exception as exc:

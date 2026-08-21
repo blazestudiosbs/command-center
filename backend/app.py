@@ -16,7 +16,7 @@ from typing import List, Optional
 from routers.auth import router as auth_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
-from services import advisor_service, auth_service, budget_service, development_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, task_service, worker_service
+from services import advisor_service, auth_service, budget_service, cloud_response_service, development_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -926,70 +926,6 @@ def test_alert():
 
     return result
 
-def run_guarded_cloud_response(prompt: str, max_output_tokens: int, domain: str = "general"):
-    if not router_service.cloud_routing_enabled():
-        raise RuntimeError("Cloud routing is disabled.")
-    client = openai_service.get_client()
-    if client is None:
-        raise RuntimeError("OpenAI API key is not configured.")
-
-    input_tokens = budget_service.estimate_live_input_tokens(prompt)
-    estimated_cost = budget_service.estimate_cost(input_tokens, max_output_tokens)
-    policy = policy_service.evaluate_domain_request(
-        domain=domain,
-        provider="openai",
-        model=openai_service.get_model(),
-        estimated_cost_usd=estimated_cost,
-    )
-    if not policy["allowed"]:
-        raise RuntimeError(policy["reason"])
-
-    reservation = budget_service.reserve_live(
-        prompt=prompt,
-        max_output_tokens=max_output_tokens,
-        domain=domain,
-        model=openai_service.get_model(),
-    )
-    try:
-        response = client.responses.create(
-            model=openai_service.get_model(),
-            input=prompt,
-            max_output_tokens=max_output_tokens,
-            store=False,
-        )
-    except Exception as exc:
-        budget_service.retain_live_reservation(reservation["id"], type(exc).__name__)
-        raise
-
-    status, incomplete_reason = openai_service.get_response_status(response)
-    usage = getattr(response, "usage", None)
-    settlement_reason = "Settled from API-reported token usage."
-    if status != "completed":
-        settlement_reason = (
-            f"OpenAI response ended with status {status}"
-            + (f": {incomplete_reason}." if incomplete_reason else ".")
-        )
-
-    if usage is None:
-        budget_service.retain_live_reservation(
-            reservation["id"],
-            f"{settlement_reason} API usage was unavailable.",
-        )
-        ledger = reservation
-    else:
-        ledger = budget_service.settle_live(
-            reservation["id"],
-            input_tokens=int(getattr(usage, "input_tokens", reservation["input_tokens"])),
-            output_tokens=int(getattr(usage, "output_tokens", reservation["output_tokens"])),
-            reason=settlement_reason,
-        )
-
-    if status != "completed":
-        detail = f" ({incomplete_reason})" if incomplete_reason else ""
-        raise RuntimeError(f"OpenAI response ended with status: {status}{detail}")
-    return response, ledger
-
-
 @app.post("/api/analyze")
 def analyze(session: dict = Depends(require_csrf)):
     if not router_service.cloud_routing_enabled():
@@ -1014,7 +950,9 @@ Server status JSON:
 """
 
     try:
-        response, ledger = run_guarded_cloud_response(prompt, 800)
+        response, ledger = cloud_response_service.run_guarded(
+            input_data=prompt, budget_text=prompt, max_output_tokens=800
+        )
         return {
             "analysis": response.output_text,
             "provider": "openai",
@@ -1058,7 +996,9 @@ Daily briefing JSON:
 """
 
     try:
-        response, ledger = run_guarded_cloud_response(prompt, 500)
+        response, ledger = cloud_response_service.run_guarded(
+            input_data=prompt, budget_text=prompt, max_output_tokens=500
+        )
         return {
             "briefing": response.output_text,
             "provider": "openai",

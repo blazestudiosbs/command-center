@@ -25,9 +25,13 @@ class DomainPolicyServiceTests(unittest.TestCase):
     def test_expected_domain_defaults_are_seeded(self):
         policies = {policy["domain"]: policy for policy in policy_service.list_domain_policies()}
 
-        self.assertTrue({"general", "home", "family", "development", "security"}.issubset(policies))
+        self.assertTrue(
+            {"general", "home", "family", "development", "security", "conversation"}.issubset(policies)
+        )
         self.assertFalse(policies["family"]["cloud_allowed"])
         self.assertTrue(policies["security"]["approval_required"])
+        self.assertTrue(policies["conversation"]["cloud_allowed"])
+        self.assertEqual(policies["conversation"]["max_request_usd"], 0.02)
 
     def test_family_cloud_request_fails_closed(self):
         decision = policy_service.evaluate_domain_request(

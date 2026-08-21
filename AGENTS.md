@@ -41,7 +41,7 @@ Backend development:
 
 ## Chat / AI integration
 
-- `backend/services/openai_service.py` owns the existing OpenAI Python client configuration used by `backend/app.py`.
+- `backend/services/openai_service.py` owns the OpenAI Python client; `backend/services/cloud_response_service.py` is the single guarded live-response path shared by the API and Vera conversations.
 - Chat-style features are implemented in `/api/ask`, `/api/analyze`, and `/api/briefing`.
 - Relevant environment variables:
   - `OPENAI_API_KEY` (optional; when blank or absent, cloud requests are disabled)
@@ -56,6 +56,8 @@ Backend development:
 - Authenticated router inspection is available through `/api/vera/router/status`, `/api/vera/router/simulate`, and `/api/vera/router/decisions`.
 - Cloud API access defaults off and is persisted through `cloud_routing_state`; authenticated CSRF-protected controls live at `/api/vera/router/cloud/*`.
 - Live `/api/analyze` and `/api/briefing` calls require authentication, the cloud toggle, domain policy approval, and an atomic budget reservation.
+- Vera conversations always try Ollama first. Only a genuine local failure may use the guarded cloud path, and only while cloud routing is enabled under the dedicated `conversation` domain policy.
+- The Discord worker receives the server-side `.env` so it can use the same OpenAI and budget configuration; never expose those values in messages, APIs, or logs.
 - Live OpenAI requests use `max_retries=0`; uncertain failures retain the worst-case reservation until reviewed rather than returning potentially spent budget.
 - Preserve existing prompt structure and fallback messaging when updating AI behaviors.
 
