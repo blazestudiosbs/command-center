@@ -75,7 +75,7 @@ export async function getVeraAudit(limit = 100) {
   return res.data.events;
 }
 
-export async function getDecisionJournal(limit = 25, offset = 0) {
+export async function getDecisionJournal(limit = 10, offset = 0) {
   const res = await axios.get(
     `/api/vera/journal?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`,
   );

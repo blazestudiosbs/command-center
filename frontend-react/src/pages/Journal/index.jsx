@@ -20,7 +20,7 @@ export default function JournalPage() {
   const load = useCallback(async (append = false) => {
     try {
       const offset = append ? entries.length : 0;
-      const data = await getDecisionJournal(25, offset);
+      const data = await getDecisionJournal(10, offset);
       setEntries((current) => append ? [...current, ...data.entries] : data.entries);
       setSummary(data.summary);
       setHasMore(data.has_more);
