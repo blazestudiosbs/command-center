@@ -47,7 +47,7 @@ services:
       - .env
     environment:
       - VERA_DATABASE_PATH=/app/config/vera.db
-      - VERA_LOCAL_MODEL=qwen3:4b
+      - VERA_LOCAL_MODEL=qwen3:4b-instruct
       - VERA_OLLAMA_URL=http://127.0.0.1:11434
       - VERA_DISCORD_GUILD_ID=1537268263782715392
       - VERA_DISCORD_CHANNEL_ID=1539806521280569424

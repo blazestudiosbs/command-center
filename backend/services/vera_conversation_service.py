@@ -60,7 +60,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     if user_message["id"] != existing[-1]["id"]:
         return {"duplicate": True, "user_message": user_message, "assistant_message": None}
 
-    model = os.getenv("VERA_LOCAL_MODEL", "qwen3:4b")
+    model = os.getenv("VERA_LOCAL_MODEL", "qwen3:4b-instruct")
     model_url = os.getenv("VERA_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
     input_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for message in existing[-40:]:

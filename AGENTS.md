@@ -46,6 +46,7 @@ Backend development:
 - Relevant environment variables:
   - `OPENAI_API_KEY` (optional; when blank or absent, cloud requests are disabled)
   - `OPENAI_MODEL` (default `gpt-4.1-mini`)
+  - `VERA_LOCAL_MODEL` (default `qwen3:4b-instruct`; use a non-thinking model for user-visible conversations)
   - `VERA_LOCAL_MAX_OUTPUT_TOKENS` (default `512`, bounded from `128` to `2048`)
   - `DISCORD_WEBHOOK`
 - `GET /api/openai/status` reports whether OpenAI is configured without exposing the key or making a billable API request.

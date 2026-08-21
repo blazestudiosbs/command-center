@@ -7,7 +7,7 @@ from services import budget_service, policy_service
 from storage import connection
 
 
-DEFAULT_LOCAL_MODEL = "qwen3:4b"
+DEFAULT_LOCAL_MODEL = "qwen3:4b-instruct"
 DEFAULT_CLOUD_MODEL = "gpt-4.1-mini"
 DEFAULT_LOCAL_CONFIDENCE_THRESHOLD = 0.70
 
