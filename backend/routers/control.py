@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from routers.auth import current_session, require_csrf
-from services import audit_service, policy_service, router_service
+from services import audit_service, decision_journal_service, policy_service, router_service
 
 
 router = APIRouter(prefix="/api/vera", tags=["vera-control"])
@@ -234,3 +234,8 @@ def get_routing_decisions(limit: int = 100, session: dict = Depends(current_sess
 @router.get("/audit")
 def get_audit(limit: int = 100, session: dict = Depends(current_session)):
     return {"events": audit_service.list_events(limit)}
+
+
+@router.get("/journal")
+def get_decision_journal(limit: int = 100, session: dict = Depends(current_session)):
+    return {"entries": decision_journal_service.list_entries(limit)}

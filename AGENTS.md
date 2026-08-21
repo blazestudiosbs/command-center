@@ -56,6 +56,7 @@ Backend development:
 - Authenticated policy inspection is available through `/api/vera/policies/domains` and `/api/vera/policies/evaluate`.
 - Local-first routing simulation is owned by `backend/services/router_service.py` and records decisions without executing either local or cloud models.
 - Authenticated router inspection is available through `/api/vera/router/status`, `/api/vera/router/simulate`, and `/api/vera/router/decisions`.
+- The authenticated Decision Journal at `/api/vera/journal` merges route, control, simulation, and budget metadata without exposing prompts or conversation content.
 - Cloud API access defaults off and is persisted through `cloud_routing_state`; authenticated CSRF-protected controls live at `/api/vera/router/cloud/*`.
 - Live `/api/analyze` and `/api/briefing` calls require authentication, the cloud toggle, domain policy approval, and an atomic budget reservation.
 - Vera conversations always try Ollama first. Only a genuine local failure may use the guarded cloud path, and only while cloud routing is enabled under the dedicated `conversation` domain policy.

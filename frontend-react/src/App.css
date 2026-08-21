@@ -177,6 +177,80 @@ body {
   background: #475569;
 }
 
+.journal-list {
+  display: grid;
+  gap: 14px;
+}
+
+.journal-entry {
+  padding: 18px;
+  border: 1px solid #263449;
+  border-radius: 14px;
+  background: #111827;
+}
+
+.journal-entry-heading,
+.journal-entry-heading > div,
+.journal-facts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.journal-entry-heading {
+  justify-content: space-between;
+}
+
+.journal-entry-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.journal-entry-heading time,
+.journal-reason,
+.journal-facts small {
+  color: #94a3b8;
+}
+
+.journal-kind {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #312e81;
+  color: #c7d2fe;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.journal-kind.cloud_request {
+  background: #1e3a8a;
+  color: #bfdbfe;
+}
+
+.journal-facts {
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.journal-facts span {
+  display: grid;
+  min-width: 110px;
+  gap: 3px;
+}
+
+.journal-facts small {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.journal-reason {
+  margin: 14px 0 0;
+}
+
+.journal-error {
+  color: #fca5a5;
+}
+
 @media (max-width: 640px) {
   .vera-control {
     align-items: flex-start;
