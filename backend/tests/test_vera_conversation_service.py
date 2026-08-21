@@ -56,6 +56,15 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertEqual(post.call_count, 1)
         sent_messages = post.call_args.kwargs["json"]["messages"]
         self.assertTrue(sent_messages[-1]["content"].endswith("/no_think"))
+        self.assertEqual(post.call_args.kwargs["json"]["options"]["num_predict"], 512)
+
+    def test_local_output_limit_is_bounded(self):
+        with patch.dict(os.environ, {"VERA_LOCAL_MAX_OUTPUT_TOKENS": "900"}):
+            self.assertEqual(vera_conversation_service._local_max_output_tokens(), 900)
+        with patch.dict(os.environ, {"VERA_LOCAL_MAX_OUTPUT_TOKENS": "999999"}):
+            self.assertEqual(vera_conversation_service._local_max_output_tokens(), 512)
+        with patch.dict(os.environ, {"VERA_LOCAL_MAX_OUTPUT_TOKENS": "invalid"}):
+            self.assertEqual(vera_conversation_service._local_max_output_tokens(), 512)
 
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
