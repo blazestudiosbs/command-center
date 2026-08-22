@@ -141,6 +141,35 @@ export async function previewGmailOrganizer() {
   return res.data;
 }
 
+export async function getGmailLearningStatus() {
+  const res = await axios.get("/api/gmail/learning/status");
+  return res.data;
+}
+
+export async function learnGmailSender(sender, category) {
+  const res = await axios.post(
+    "/api/gmail/learning/sender-rule",
+    { sender, category },
+    { headers: csrfHeaders() },
+  );
+  return res.data;
+}
+
+export async function getGmailOrganizerSettings() {
+  const res = await axios.get("/api/gmail/organizer/settings");
+  return res.data;
+}
+
+export async function setGmailOrganizerEnabled(enabled) {
+  const res = await axios.put("/api/gmail/organizer/settings", { enabled }, { headers: csrfHeaders() });
+  return res.data;
+}
+
+export async function runGmailOrganizer() {
+  const res = await axios.post("/api/gmail/organizer/run", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getAgents() {
   const res = await axios.get("/api/agents");
   return res.data.agents;

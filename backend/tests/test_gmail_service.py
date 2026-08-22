@@ -41,10 +41,10 @@ class GmailServiceTests(unittest.TestCase):
         self.assertFalse(status["can_send"])
         self.assertNotIn("client-secret", str(status))
 
-    def test_authorization_uses_readonly_scope_and_one_time_state(self):
+    def test_authorization_uses_modify_scope_and_one_time_state(self):
         authorization_url = gmail_service.authorization_url("owner")
         query = parse_qs(urlparse(authorization_url).query)
-        self.assertEqual(query["scope"], [gmail_service.GMAIL_READONLY_SCOPE])
+        self.assertEqual(query["scope"], [gmail_service.GMAIL_MODIFY_SCOPE])
         self.assertEqual(query["access_type"], ["offline"])
         self.assertEqual(query["redirect_uri"], [os.environ["GMAIL_OAUTH_REDIRECT_URI"]])
         with connection() as conn:
@@ -147,6 +147,96 @@ class GmailServiceTests(unittest.TestCase):
             gmail_service._classification("Airline <travel@example.com>", "Your boarding pass"),
             ("Travel/Flights", "high"),
         )
+
+    def test_user_correction_becomes_a_zero_cost_sender_rule(self):
+        rule = gmail_service.learn_sender_rule(
+            "owner", "Friendly Person <friend@example.com>", "Personal/Family"
+        )
+
+        self.assertEqual(rule["match_value"], "friend@example.com")
+        self.assertTrue(rule["approved"])
+        self.assertEqual(
+            gmail_service._classification(
+                "Friendly Person <friend@example.com>", "An unrelated subject", "owner"
+            ),
+            ("Personal/Family", "learned"),
+        )
+        learning = gmail_service.get_learning_status("owner")
+        self.assertEqual(learning["learned_rule_count"], 1)
+        self.assertFalse(learning["cloud_review_enabled"])
+        self.assertEqual(learning["monthly_budget_usd"], 0.25)
+        self.assertEqual(learning["weekly_message_limit"], 20)
+        self.assertFalse(learning["include_message_bodies"])
+
+    def test_sender_rule_rejects_unknown_category(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported"):
+            gmail_service.learn_sender_rule(
+                "owner", "sender@example.com", "Something/Invented"
+            )
+
+    def test_organizer_cannot_enable_without_modify_authorization(self):
+        encrypted = gmail_service._fernet().encrypt(b"refresh-token").decode("ascii")
+        with connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO gmail_connections
+                    (user_id, email_address, encrypted_refresh_token, scopes_json, connected_utc, updated_utc)
+                VALUES ('owner', 'bruce@example.com', ?, ?, '2026-08-22T00:00:00Z', '2026-08-22T00:00:00Z')
+                """,
+                (encrypted, f'["{gmail_service.GMAIL_READONLY_SCOPE}"]'),
+            )
+        with self.assertRaisesRegex(RuntimeError, "Reconnect"):
+            gmail_service.set_organizer_enabled("owner", True)
+
+    def test_organizer_settings_enable_after_modify_authorization(self):
+        encrypted = gmail_service._fernet().encrypt(b"refresh-token").decode("ascii")
+        with connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO gmail_connections
+                    (user_id, email_address, encrypted_refresh_token, scopes_json, connected_utc, updated_utc)
+                VALUES ('owner', 'bruce@example.com', ?, ?, '2026-08-22T00:00:00Z', '2026-08-22T00:00:00Z')
+                """,
+                (encrypted, f'["{gmail_service.GMAIL_MODIFY_SCOPE}"]'),
+            )
+        settings = gmail_service.set_organizer_enabled("owner", True)
+        self.assertTrue(settings["enabled"])
+        self.assertEqual(settings["filing_mode"], "apply_labels_then_remove_inbox")
+
+    @patch("services.gmail_service.requests.get")
+    @patch("services.gmail_service.requests.post")
+    def test_live_organizer_labels_before_removing_inbox(self, post, get):
+        encrypted = gmail_service._fernet().encrypt(b"refresh-token").decode("ascii")
+        with connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO gmail_connections
+                    (user_id, email_address, encrypted_refresh_token, scopes_json, connected_utc, updated_utc)
+                VALUES ('owner', 'bruce@example.com', ?, ?, '2026-08-22T00:00:00Z', '2026-08-22T00:00:00Z')
+                """,
+                (encrypted, f'["{gmail_service.GMAIL_MODIFY_SCOPE}"]'),
+            )
+        gmail_service.set_organizer_enabled("owner", True)
+        token = Mock(); token.json.return_value = {"access_token": "access"}; token.raise_for_status.return_value = None
+        label_one = Mock(); label_one.json.return_value = {"id": "label-category"}; label_one.raise_for_status.return_value = None
+        label_two = Mock(); label_two.json.return_value = {"id": "label-sender"}; label_two.raise_for_status.return_value = None
+        modified = Mock(); modified.raise_for_status.return_value = None
+        post.side_effect = [token, label_one, label_two, modified]
+        listing = Mock(); listing.json.return_value = {"messages": [{"id": "m1"}]}; listing.raise_for_status.return_value = None
+        metadata = Mock(); metadata.json.return_value = {"payload": {"headers": [
+            {"name": "From", "value": "Amazon <orders@amazon.com>"},
+            {"name": "Subject", "value": "Your order has shipped"},
+        ]}}; metadata.raise_for_status.return_value = None
+        labels = Mock(); labels.json.return_value = {"labels": []}; labels.raise_for_status.return_value = None
+        get.side_effect = [listing, metadata, labels]
+
+        result = gmail_service.run_organizer("owner", include_existing=True)
+
+        self.assertEqual(result, {"status": "completed", "processed": 1, "failed": 0})
+        modify_call = post.call_args_list[-1]
+        self.assertTrue(modify_call.args[0].endswith("/messages/m1/modify"))
+        self.assertEqual(modify_call.kwargs["json"]["removeLabelIds"], ["INBOX"])
+        self.assertEqual(modify_call.kwargs["json"]["addLabelIds"], ["label-category", "label-sender"])
 
 
 if __name__ == "__main__":

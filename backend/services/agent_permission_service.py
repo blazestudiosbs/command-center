@@ -20,6 +20,7 @@ AGENTS = (
         "capabilities": (
             {"id": "read_inbox", "name": "Read inbox", "default": False, "available": True},
             {"id": "search", "name": "Search email", "default": False, "available": True},
+            {"id": "organize_and_file", "name": "Organize and remove from Inbox", "default": False, "available": True},
             {"id": "cloud_processing", "name": "Send email content to cloud AI", "default": False, "available": True},
             {"id": "send", "name": "Send email", "default": False, "available": False},
             {"id": "modify", "name": "Modify or delete email", "default": False, "available": False},

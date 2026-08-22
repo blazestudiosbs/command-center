@@ -22,7 +22,7 @@ from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
-from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
+from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -36,17 +36,31 @@ async def service_monitor_loop():
         await asyncio.sleep(service_monitoring_service.interval_seconds())
 
 
+async def gmail_organizer_loop():
+    while True:
+        try:
+            if agent_permission_service.is_allowed("owner", "gmail", "organize_and_file"):
+                await asyncio.to_thread(gmail_service.run_organizer, "owner")
+        except Exception as exc:
+            print(f"Gmail organizer check failed: {exc}")
+        await asyncio.sleep(300)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     initialize_storage()
     auth_service.sync_owner()
     monitor_task = asyncio.create_task(service_monitor_loop())
+    gmail_task = asyncio.create_task(gmail_organizer_loop())
     try:
         yield
     finally:
         monitor_task.cancel()
+        gmail_task.cancel()
         with suppress(asyncio.CancelledError):
             await monitor_task
+        with suppress(asyncio.CancelledError):
+            await gmail_task
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
