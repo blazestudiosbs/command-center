@@ -82,6 +82,55 @@ class GmailServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid or expired"):
             gmail_service.complete_authorization("unknown-state", "code")
 
+    @patch("services.gmail_service.requests.get")
+    @patch("services.gmail_service.requests.post")
+    def test_organizer_preview_is_local_and_does_not_modify_gmail(self, post, get):
+        encrypted = gmail_service._fernet().encrypt(b"refresh-token").decode("ascii")
+        with connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO gmail_connections
+                    (user_id, email_address, encrypted_refresh_token, scopes_json, connected_utc, updated_utc)
+                VALUES ('owner', 'bruce@example.com', ?, ?, '2026-08-22T00:00:00Z', '2026-08-22T00:00:00Z')
+                """,
+                (encrypted, '["https://www.googleapis.com/auth/gmail.readonly"]'),
+            )
+        token_response = Mock()
+        token_response.json.return_value = {"access_token": "access-token"}
+        token_response.raise_for_status.return_value = None
+        post.return_value = token_response
+        list_response = Mock()
+        list_response.json.return_value = {"messages": [{"id": "message-1"}]}
+        list_response.raise_for_status.return_value = None
+        detail_response = Mock()
+        detail_response.json.return_value = {
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Amazon Orders <orders@amazon.com>"},
+                    {"name": "Subject", "value": "Your order has shipped"},
+                    {"name": "Date", "value": "Sat, 22 Aug 2026 10:00:00 -0400"},
+                ]
+            }
+        }
+        detail_response.raise_for_status.return_value = None
+        get.side_effect = [list_response, detail_response]
+
+        preview = gmail_service.organizer_preview("owner", limit=10)
+
+        self.assertEqual(preview["mode"], "simulation")
+        self.assertFalse(preview["cloud_processing"])
+        self.assertEqual(preview["messages"][0]["category"], "Shopping")
+        self.assertEqual(
+            preview["messages"][0]["labels"],
+            ["Vera/Categories/Shopping", "Vera/Senders/Amazon Orders"],
+        )
+        self.assertTrue(preview["messages"][0]["remove_from_inbox"])
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(get.call_count, 2)
+
+    def test_sender_label_is_sanitized(self):
+        self.assertEqual(gmail_service._safe_label("Bad/Label\nName", "Unknown"), "Bad-Label-Name")
+
 
 if __name__ == "__main__":
     unittest.main()

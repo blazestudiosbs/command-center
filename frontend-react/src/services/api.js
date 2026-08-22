@@ -136,6 +136,11 @@ export async function disconnectGmail() {
   return res.data;
 }
 
+export async function previewGmailOrganizer() {
+  const res = await axios.post("/api/gmail/organizer/preview", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getAgents() {
   const res = await axios.get("/api/agents");
   return res.data.agents;

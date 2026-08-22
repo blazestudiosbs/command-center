@@ -2291,3 +2291,35 @@ button:disabled {
 @media (max-width: 800px) {
   .agent-permission-grid { grid-template-columns: 1fr; }
 }
+.gmail-organizer-preview {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  margin-top: 1.5rem;
+  padding: 1rem;
+}
+.gmail-organizer-heading { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }
+.gmail-organizer-heading h2 { margin: 0; }
+.gmail-organizer-heading p { margin: 0.3rem 0 0; }
+.gmail-preview-list article {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+}
+.gmail-preview-list article > div { display: flex; flex-direction: column; gap: 0.25rem; }
+.gmail-preview-labels { align-items: flex-end; }
+.gmail-preview-labels span {
+  background: rgba(93, 146, 255, 0.15);
+  border-radius: 999px;
+  color: #9dbbff;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+}
+@media (max-width: 760px) {
+  .gmail-organizer-heading,
+  .gmail-preview-list article { align-items: flex-start; flex-direction: column; }
+  .gmail-preview-labels { align-items: flex-start; }
+}

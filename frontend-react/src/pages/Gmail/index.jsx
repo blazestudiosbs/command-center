@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { disconnectGmail, getGmailStatus, startGmailOAuth } from "../../services/api";
+import { disconnectGmail, getGmailStatus, previewGmailOrganizer, startGmailOAuth } from "../../services/api";
 
 export default function GmailPage() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   async function load() {
     try {
@@ -36,6 +37,18 @@ export default function GmailPage() {
       await load();
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Gmail could not be disconnected");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadPreview() {
+    setBusy(true);
+    try {
+      setPreview(await previewGmailOrganizer());
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || "Organizer preview unavailable");
     } finally {
       setBusy(false);
     }
@@ -81,6 +94,31 @@ export default function GmailPage() {
         )}
       </section>
       <p className="answer">Inbox reading and the Gmail agent will remain disabled until this connection is verified.</p>
+      {status?.connected && (
+        <section className="gmail-organizer-preview">
+          <div className="gmail-organizer-heading">
+            <div>
+              <h2>Organizer simulation</h2>
+              <p>Preview sender and category labels. This does not change Gmail.</p>
+            </div>
+            <button type="button" className="secondary-button" disabled={busy} onClick={loadPreview}>
+              {busy ? "Loading…" : "Preview organization"}
+            </button>
+          </div>
+          {preview && <p className="answer">{preview.message_count} inbox messages analyzed locally. No changes made.</p>}
+          <div className="gmail-preview-list">
+            {(preview?.messages || []).map((message) => (
+              <article key={message.message_id}>
+                <div><strong>{message.subject}</strong><small>{message.sender}</small></div>
+                <div className="gmail-preview-labels">
+                  {message.labels.map((label) => <span key={label}>{label}</span>)}
+                  <small>Will remove from Inbox</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

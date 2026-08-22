@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from routers.auth import current_session, require_csrf
-from services import audit_service, gmail_service
+from services import agent_permission_service, audit_service, gmail_service
 
 
 router = APIRouter(prefix="/api/gmail", tags=["gmail"])
@@ -51,5 +51,28 @@ def disconnect(session: dict = Depends(require_csrf)):
         resource_id=session["user_id"],
         outcome="succeeded",
         details=result,
+    )
+    return result
+
+
+@router.post("/organizer/preview")
+def organizer_preview(session: dict = Depends(require_csrf)):
+    try:
+        agent_permission_service.require(session["user_id"], "gmail", "read_inbox")
+    except agent_permission_service.AgentPermissionDeniedError as exc:
+        raise HTTPException(status_code=403, detail="Enable Gmail Agent → Read inbox in Agent Permissions first.") from exc
+    try:
+        result = gmail_service.organizer_preview(session["user_id"])
+    except Exception as exc:
+        audit_service.append_event(
+            actor_user_id=session["user_id"], action="gmail.organizer_preview",
+            resource_type="gmail_connection", resource_id=session["user_id"], outcome="failed",
+            details={"error_type": type(exc).__name__, "cloud_processing": False},
+        )
+        raise HTTPException(status_code=502, detail="Gmail organizer preview could not be loaded.") from exc
+    audit_service.append_event(
+        actor_user_id=session["user_id"], action="gmail.organizer_preview",
+        resource_type="gmail_connection", resource_id=session["user_id"], outcome="succeeded",
+        details={"message_count": result["message_count"], "simulation": True, "cloud_processing": False},
     )
     return result

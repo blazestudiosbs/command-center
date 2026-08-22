@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
+from email.utils import parseaddr
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -16,6 +18,7 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 
 
 def _utc_now() -> datetime:
@@ -193,3 +196,103 @@ def disconnect(user_id: str) -> dict:
         except (InvalidToken, RuntimeError, requests.RequestException):
             revoked = False
     return {"disconnected": True, "google_access_revoked": revoked}
+
+
+def _access_token(user_id: str) -> str:
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT encrypted_refresh_token FROM gmail_connections WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    if not row:
+        raise RuntimeError("Gmail is not connected.")
+    try:
+        refresh_token = _fernet().decrypt(
+            row["encrypted_refresh_token"].encode("ascii")
+        ).decode("utf-8")
+    except InvalidToken as exc:
+        raise RuntimeError("The stored Gmail authorization cannot be decrypted.") from exc
+    config = _config()
+    response = requests.post(
+        TOKEN_URL,
+        data={
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    access_token = response.json().get("access_token")
+    if not access_token:
+        raise RuntimeError("Google did not return a Gmail access token.")
+    return access_token
+
+
+def _safe_label(value: str, fallback: str) -> str:
+    cleaned = re.sub(r"[\x00-\x1f/]+", "-", value).strip(" .-")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return (cleaned or fallback)[:80]
+
+
+def _classification(sender: str, subject: str) -> str:
+    text = f"{sender} {subject}".lower()
+    rules = (
+        ("Security", ("security", "verification", "verify", "password", "login", "sign-in", "2fa")),
+        ("Bills", ("bill", "invoice", "payment", "statement", "due", "utility")),
+        ("Shopping", ("order", "shipped", "delivery", "receipt", "amazon", "purchase")),
+        ("Subscriptions", ("newsletter", "digest", "subscription", "weekly update")),
+        ("Travel", ("flight", "hotel", "reservation", "booking", "itinerary")),
+    )
+    return next((category for category, keywords in rules if any(word in text for word in keywords)), "General")
+
+
+def organizer_preview(user_id: str, limit: int = 20) -> dict:
+    safe_limit = max(1, min(int(limit), 50))
+    access_token = _access_token(user_id)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(
+        MESSAGES_URL,
+        headers=headers,
+        params={"labelIds": "INBOX", "maxResults": safe_limit, "includeSpamTrash": "false"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    messages = response.json().get("messages") or []
+    proposals = []
+    for item in messages[:safe_limit]:
+        detail = requests.get(
+            f"{MESSAGES_URL}/{item['id']}",
+            headers=headers,
+            params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
+            timeout=10,
+        )
+        detail.raise_for_status()
+        payload = detail.json()
+        header_values = {
+            header.get("name", "").lower(): header.get("value", "")
+            for header in payload.get("payload", {}).get("headers", [])
+        }
+        sender_raw = header_values.get("from", "Unknown sender")
+        display_name, email_address = parseaddr(sender_raw)
+        sender_name = _safe_label(display_name or email_address, "Unknown sender")
+        category = _classification(sender_raw, header_values.get("subject", ""))
+        proposals.append(
+            {
+                "message_id": item["id"],
+                "sender": sender_raw,
+                "subject": header_values.get("subject") or "(no subject)",
+                "date": header_values.get("date"),
+                "category": category,
+                "labels": [f"Vera/Categories/{category}", f"Vera/Senders/{sender_name}"],
+                "remove_from_inbox": True,
+                "simulation": True,
+            }
+        )
+    return {
+        "mode": "simulation",
+        "cloud_processing": False,
+        "message_count": len(proposals),
+        "messages": proposals,
+        "detail": "No Gmail messages or labels were changed.",
+    }
