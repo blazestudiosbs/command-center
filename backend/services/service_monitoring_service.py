@@ -279,7 +279,7 @@ def get_history(limit: int = 10) -> list[dict]:
                 "detail": details.get("detail"),
                 "alert_sent": bool(details.get("alert_sent")),
                 "alert_suppressed": details.get("alert_suppressed"),
-                "created_utc": row["created_utc"],
+                "created_utc": details.get("created_utc") or row["created_utc"],
             }
         )
     return history

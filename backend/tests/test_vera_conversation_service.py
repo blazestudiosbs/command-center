@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from services import auth_service, conversation_service, vera_conversation_service
+from services import auth_service, conversation_service, service_monitoring_service, vera_conversation_service
 from storage import initialize_storage
 
 
@@ -65,6 +65,95 @@ class VeraConversationServiceTests(unittest.TestCase):
             self.assertEqual(vera_conversation_service._local_max_output_tokens(), 512)
         with patch.dict(os.environ, {"VERA_LOCAL_MAX_OUTPUT_TOKENS": "invalid"}):
             self.assertEqual(vera_conversation_service._local_max_output_tokens(), 512)
+
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.cloud_response_service.run_guarded")
+    def test_service_status_question_uses_deterministic_local_answer(self, run_guarded, post):
+        snapshot = {
+            name: {"status": "running", "detail": "Docker status: running."}
+            for name in service_monitoring_service.configured_containers()
+        }
+        snapshot["plex"] = {"status": "stopped", "detail": "Docker status: exited."}
+        service_monitoring_service.record_snapshot(snapshot, now="2026-08-21T12:00:00Z")
+        conversation = conversation_service.create_conversation("owner", "Discord")
+
+        result = vera_conversation_service.respond(
+            owner_user_id="owner",
+            conversation_id=conversation["id"],
+            content="Vera, are my services running?",
+            client_message_id="discord:monitoring-1",
+            source="discord",
+        )
+
+        answer = result["assistant_message"]
+        self.assertIn("Unavailable: Plex (stopped)", answer["content"])
+        self.assertEqual(answer["model"], "vera-monitoring")
+        self.assertEqual(answer["metadata"]["provider"], "local")
+        post.assert_not_called()
+        run_guarded.assert_not_called()
+
+    @patch("services.vera_conversation_service.requests.post")
+    def test_specific_service_question_uses_stored_status(self, post):
+        snapshot = {
+            name: {"status": "running", "detail": "Docker status: running."}
+            for name in service_monitoring_service.configured_containers()
+        }
+        service_monitoring_service.record_snapshot(snapshot, now="2026-08-21T12:00:00Z")
+        conversation = conversation_service.create_conversation("owner", "Discord")
+
+        result = vera_conversation_service.respond(
+            owner_user_id="owner",
+            conversation_id=conversation["id"],
+            content="Is Minecraft up?",
+            client_message_id="discord:monitoring-2",
+            source="discord",
+        )
+
+        self.assertIn("Minecraft is running", result["assistant_message"]["content"])
+        post.assert_not_called()
+
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.cloud_response_service.run_guarded")
+    def test_recent_incident_question_uses_local_audit_history(self, run_guarded, post):
+        running = {
+            name: {"status": "running", "detail": "running"}
+            for name in service_monitoring_service.configured_containers()
+        }
+        stopped = dict(running)
+        stopped["plex"] = {"status": "stopped", "detail": "exited"}
+        with patch("services.service_monitoring_service.discord_alert_service.send", return_value={"sent": False}):
+            service_monitoring_service.record_snapshot(running, now="2026-08-21T12:00:00Z")
+            service_monitoring_service.record_snapshot(stopped, now="2026-08-21T12:01:00Z")
+            service_monitoring_service.record_snapshot(running, now="2026-08-21T12:02:00Z")
+        conversation = conversation_service.create_conversation("owner", "Discord")
+
+        result = vera_conversation_service.respond(
+            owner_user_id="owner",
+            conversation_id=conversation["id"],
+            content="When did Plex recover?",
+            client_message_id="discord:monitoring-history-1",
+            source="discord",
+        )
+
+        answer = result["assistant_message"]["content"]
+        self.assertIn("Plex: recovery at 2026-08-21T12:02:00Z", answer)
+        self.assertEqual(result["assistant_message"]["model"], "vera-monitoring")
+        post.assert_not_called()
+        run_guarded.assert_not_called()
+
+    @patch("services.vera_conversation_service.requests.post")
+    def test_empty_incident_history_has_clear_local_answer(self, post):
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(
+            owner_user_id="owner",
+            conversation_id=conversation["id"],
+            content="Were there any recent outages?",
+            client_message_id="discord:monitoring-history-2",
+            source="discord",
+        )
+
+        self.assertIn("no matching recent incidents", result["assistant_message"]["content"])
+        post.assert_not_called()
 
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
