@@ -97,6 +97,18 @@ export async function getMonitoringStatus() {
   return res.data;
 }
 
+export async function getMonitoringNotifications() {
+  const res = await axios.get("/api/monitoring/notifications");
+  return res.data;
+}
+
+export async function updateMonitoringNotifications(preferences) {
+  const res = await axios.put("/api/monitoring/notifications", preferences, {
+    headers: csrfHeaders(),
+  });
+  return res.data;
+}
+
 export async function getAnalysis() {
   const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;

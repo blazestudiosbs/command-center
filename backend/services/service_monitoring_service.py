@@ -47,6 +47,82 @@ def cooldown_seconds() -> int:
         return 300
 
 
+def get_notification_preferences() -> dict:
+    names = configured_containers()
+    with connection() as conn:
+        global_row = conn.execute(
+            "SELECT * FROM monitoring_notification_settings WHERE id = 'global'"
+        ).fetchone()
+        if global_row is None:
+            now = _utc_now()
+            conn.execute(
+                """
+                INSERT INTO monitoring_notification_settings (id, alerts_enabled, cooldown_seconds, updated_utc)
+                VALUES ('global', 1, ?, ?)
+                """,
+                (cooldown_seconds(), now),
+            )
+            global_row = {"alerts_enabled": 1, "cooldown_seconds": cooldown_seconds(), "updated_utc": now}
+        service_rows = conn.execute(
+            "SELECT * FROM monitoring_service_notification_preferences"
+        ).fetchall()
+    stored = {row["container_name"]: dict(row) for row in service_rows}
+    return {
+        "alerts_enabled": bool(global_row["alerts_enabled"]),
+        "cooldown_seconds": global_row["cooldown_seconds"],
+        "services": [
+            {
+                "container_name": name,
+                "display_name": _display_name(name),
+                "outage_alerts_enabled": bool(stored.get(name, {}).get("outage_alerts_enabled", 1)),
+                "recovery_alerts_enabled": bool(stored.get(name, {}).get("recovery_alerts_enabled", 1)),
+            }
+            for name in names
+        ],
+    }
+
+
+def set_notification_preferences(
+    *, alerts_enabled: bool, cooldown: int, services: list[dict]
+) -> dict:
+    known = set(configured_containers())
+    supplied = {item["container_name"] for item in services}
+    if not supplied.issubset(known):
+        raise ValueError("Notification preferences contain an unknown service.")
+    now = _utc_now()
+    with connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO monitoring_notification_settings (id, alerts_enabled, cooldown_seconds, updated_utc)
+            VALUES ('global', ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                alerts_enabled = excluded.alerts_enabled,
+                cooldown_seconds = excluded.cooldown_seconds,
+                updated_utc = excluded.updated_utc
+            """,
+            (int(alerts_enabled), cooldown, now),
+        )
+        for item in services:
+            conn.execute(
+                """
+                INSERT INTO monitoring_service_notification_preferences
+                    (container_name, outage_alerts_enabled, recovery_alerts_enabled, updated_utc)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(container_name) DO UPDATE SET
+                    outage_alerts_enabled = excluded.outage_alerts_enabled,
+                    recovery_alerts_enabled = excluded.recovery_alerts_enabled,
+                    updated_utc = excluded.updated_utc
+                """,
+                (
+                    item["container_name"],
+                    int(item["outage_alerts_enabled"]),
+                    int(item["recovery_alerts_enabled"]),
+                    now,
+                ),
+            )
+    return get_notification_preferences()
+
+
 def _display_name(container_name: str) -> str:
     names = {
         "command-center": "Command Center",
@@ -83,6 +159,8 @@ def record_snapshot(
 ) -> list[dict]:
     checked_utc = now or _utc_now()
     notify = notifier or discord_alert_service.send
+    preferences = get_notification_preferences()
+    service_preferences = {item["container_name"]: item for item in preferences["services"]}
     transitions = []
 
     for container_name in configured_containers():
@@ -114,7 +192,14 @@ def record_snapshot(
 
             last_alerted = _parse_utc(previous["last_alerted_utc"])
             checked = _parse_utc(checked_utc)
-            alert_allowed = not last_alerted or not checked or (checked - last_alerted).total_seconds() >= cooldown_seconds()
+            is_recovery = status == "running"
+            service_preference = service_preferences[container_name]
+            transition_enabled = (
+                service_preference["recovery_alerts_enabled"] if is_recovery
+                else service_preference["outage_alerts_enabled"]
+            )
+            cooldown_elapsed = not last_alerted or not checked or (checked - last_alerted).total_seconds() >= preferences["cooldown_seconds"]
+            alert_allowed = preferences["alerts_enabled"] and transition_enabled and cooldown_elapsed
             action = "service_monitor.recovery" if status == "running" else "service_monitor.outage"
             outcome = "succeeded" if status == "running" else "failed"
             transition = {
@@ -125,8 +210,14 @@ def record_snapshot(
                 "detail": detail,
                 "created_utc": checked_utc,
                 "alert_sent": False,
-                "alert_suppressed": None if alert_allowed else "cooldown",
+                "alert_suppressed": None,
             }
+            if not preferences["alerts_enabled"]:
+                transition["alert_suppressed"] = "alerts_disabled"
+            elif not transition_enabled:
+                transition["alert_suppressed"] = "service_preference"
+            elif not cooldown_elapsed:
+                transition["alert_suppressed"] = "cooldown"
             if alert_allowed:
                 severity = "success" if status == "running" else "critical"
                 title = f"{display_name} recovered" if status == "running" else f"{display_name} is unavailable"
@@ -180,11 +271,13 @@ def get_status() -> dict:
         for name in names
     ]
     healthy = sum(service["status"] == "running" for service in services)
+    preferences = get_notification_preferences()
     return {
         "mode": "observation_only",
         "automatic_restarts": False,
         "interval_seconds": interval_seconds(),
-        "alert_cooldown_seconds": cooldown_seconds(),
+        "alert_cooldown_seconds": preferences["cooldown_seconds"],
+        "alerts_enabled": preferences["alerts_enabled"],
         "discord_alerts_configured": bool(os.getenv("DISCORD_WEBHOOK", "").strip()),
         "summary": {
             "total": len(services),

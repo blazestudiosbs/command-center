@@ -86,6 +86,60 @@ class ServiceMonitoringTests(unittest.TestCase):
         self.assertEqual(recovery[0]["alert_suppressed"], "cooldown")
         self.assertEqual(audit_service.list_events()[0]["action"], "service_monitor.recovery")
 
+    def test_notification_preferences_are_persisted(self):
+        preferences = service_monitoring_service.set_notification_preferences(
+            alerts_enabled=False,
+            cooldown=900,
+            services=[
+                {
+                    "container_name": "plex",
+                    "outage_alerts_enabled": True,
+                    "recovery_alerts_enabled": False,
+                }
+            ],
+        )
+
+        self.assertFalse(preferences["alerts_enabled"])
+        self.assertEqual(preferences["cooldown_seconds"], 900)
+        plex = next(item for item in preferences["services"] if item["container_name"] == "plex")
+        self.assertTrue(plex["outage_alerts_enabled"])
+        self.assertFalse(plex["recovery_alerts_enabled"])
+
+    def test_disabled_alerts_still_record_transition(self):
+        service_monitoring_service.set_notification_preferences(
+            alerts_enabled=False,
+            cooldown=300,
+            services=[],
+        )
+        running = {name: {"status": "running", "detail": "running"} for name in ("command-center", "plex")}
+        stopped = dict(running)
+        stopped["plex"] = {"status": "stopped", "detail": "exited"}
+        notifications = []
+        service_monitoring_service.record_snapshot(running, now="2026-08-21T12:00:00Z")
+        transition = service_monitoring_service.record_snapshot(
+            stopped,
+            now="2026-08-21T12:01:00Z",
+            notifier=lambda *args: notifications.append(args) or {"sent": True},
+        )
+
+        self.assertEqual(notifications, [])
+        self.assertEqual(transition[0]["alert_suppressed"], "alerts_disabled")
+        self.assertEqual(audit_service.list_events()[0]["action"], "service_monitor.outage")
+
+    def test_unknown_service_preference_is_rejected(self):
+        with self.assertRaises(ValueError):
+            service_monitoring_service.set_notification_preferences(
+                alerts_enabled=True,
+                cooldown=300,
+                services=[
+                    {
+                        "container_name": "not-configured",
+                        "outage_alerts_enabled": True,
+                        "recovery_alerts_enabled": True,
+                    }
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

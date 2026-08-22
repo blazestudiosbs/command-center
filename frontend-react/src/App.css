@@ -2169,7 +2169,57 @@ button:disabled {
 .monitoring-state.missing { background: rgba(239, 84, 84, 0.18); color: #ff8b8b; }
 .monitoring-state.pending { background: rgba(255, 190, 71, 0.18); color: #ffd17b; }
 
+.monitoring-preferences {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  margin-top: 1.5rem;
+  padding: 1rem;
+}
+
+.monitoring-preferences-heading,
+.monitoring-preference-row,
+.monitoring-save-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.monitoring-preferences h2 { margin: 0; }
+.monitoring-preferences p { margin: 0.25rem 0 0; }
+.monitoring-toggle,
+.monitoring-preference-row label {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.monitoring-cooldown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  max-width: 16rem;
+}
+
+.monitoring-cooldown select {
+  background: #172033;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: inherit;
+  padding: 0.55rem;
+}
+
+.monitoring-preference-list { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.monitoring-preference-row { border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding: 0.8rem 0; }
+.monitoring-preference-row strong { margin-right: auto; }
+.monitoring-save-row { justify-content: flex-start; margin-top: 1rem; }
+
 @media (max-width: 640px) {
   .monitoring-service { align-items: flex-start; flex-direction: column; }
   .monitoring-service-state { align-items: flex-start; }
+  .monitoring-preferences-heading,
+  .monitoring-preference-row { align-items: flex-start; flex-wrap: wrap; }
+  .monitoring-preference-row strong { flex-basis: 100%; }
 }

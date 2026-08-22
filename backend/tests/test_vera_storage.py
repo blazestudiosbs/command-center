@@ -55,6 +55,7 @@ class VeraStorageTests(unittest.TestCase):
                 (7, "cloud_routing_control"),
                 (8, "conversation_cloud_policy"),
                 (9, "service_monitoring"),
+                (10, "monitoring_notification_preferences"),
             ],
         )
         self.assertTrue(
@@ -72,6 +73,8 @@ class VeraStorageTests(unittest.TestCase):
                 "routing_decisions",
                 "cloud_routing_state",
                 "service_monitor_state",
+                "monitoring_notification_settings",
+                "monitoring_service_notification_preferences",
             }.issubset(tables)
         )
 
