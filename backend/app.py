@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -9,7 +12,6 @@ import psutil
 import socket
 import subprocess
 import time
-from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
@@ -17,21 +19,38 @@ from routers.auth import router as auth_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
-from services import advisor_service, auth_service, budget_service, cloud_response_service, development_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, task_service, worker_service
+from routers.monitoring import router as monitoring_router
+from services import advisor_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
+
+
+async def service_monitor_loop():
+    while True:
+        try:
+            await asyncio.to_thread(service_monitoring_service.check_once)
+        except Exception as exc:
+            print(f"Service monitoring check failed: {exc}")
+        await asyncio.sleep(service_monitoring_service.interval_seconds())
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     initialize_storage()
     auth_service.sync_owner()
-    yield
+    monitor_task = asyncio.create_task(service_monitor_loop())
+    try:
+        yield
+    finally:
+        monitor_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await monitor_task
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(control_router)
 app.include_router(home_assistant_router)
+app.include_router(monitoring_router)
 
 class AskRequest(BaseModel):
     question: str
@@ -116,38 +135,7 @@ def run_cmd(cmd):
 
 
 def send_discord_alert(title: str, message: str, severity: str = "info"):
-    webhook = os.getenv("DISCORD_WEBHOOK")
-
-    if not webhook:
-        return {
-            "sent": False,
-            "error": "DISCORD_WEBHOOK is not configured."
-        }
-
-    icon = {
-        "info": "ℹ️",
-        "warning": "⚠️",
-        "critical": "🚨",
-        "success": "✅"
-    }.get(severity, "ℹ️")
-
-    payload = {
-        "content": f"{icon} **Command Center Alert**\n\n**{title}**\n{message}"
-    }
-
-    try:
-        import requests
-        response = requests.post(webhook, json=payload, timeout=10)
-        return {
-            "sent": response.status_code in [200, 204],
-            "status_code": response.status_code,
-            "response": response.text
-        }
-    except Exception as e:
-        return {
-            "sent": False,
-            "error": str(e)
-        }
+    return discord_alert_service.send(title, message, severity)
 
 
 def format_uptime(seconds: float) -> str:

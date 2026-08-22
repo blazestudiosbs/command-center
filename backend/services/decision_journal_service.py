@@ -9,14 +9,15 @@ def _audit_entry(event: dict[str, Any]) -> dict[str, Any]:
     action = event["action"]
     return {
         "id": f'audit:{event["id"]}',
-        "kind": "route" if action == "conversation.route" else "control",
+        "kind": "route" if action == "conversation.route" else ("monitor" if action.startswith("service_monitor.") else "control"),
         "title": action.replace(".", " ").replace("_", " ").title(),
-        "domain": "conversation" if action.startswith("conversation.") else None,
+        "domain": "conversation" if action.startswith("conversation.") else ("infrastructure" if action.startswith("service_monitor.") else None),
         "provider": details.get("route") or details.get("provider"),
         "model": details.get("model"),
         "decision": event["outcome"],
         "reason": (
             details.get("reason")
+            or details.get("detail")
             or details.get("cloud_error_type")
             or details.get("error_type")
             or (f'Local fallback trigger: {details["local_error_type"]}' if details.get("local_error_type") else None)
@@ -69,6 +70,7 @@ def _source_records() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[
                OR action LIKE 'control.%'
                OR action LIKE 'permission.%'
                OR action LIKE 'home_assistant.%'
+               OR action LIKE 'service_monitor.%'
             ORDER BY created_utc DESC, id DESC
             """
         ).fetchall()

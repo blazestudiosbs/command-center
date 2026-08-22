@@ -2129,3 +2129,47 @@ button:disabled {
     flex-direction: column;
   }
 }
+.monitoring-services {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.monitoring-service {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.monitoring-service div,
+.monitoring-service-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.monitoring-service-state {
+  align-items: flex-end;
+}
+
+.monitoring-state {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.monitoring-state.running { background: rgba(45, 191, 121, 0.18); color: #70e2a8; }
+.monitoring-state.stopped,
+.monitoring-state.missing { background: rgba(239, 84, 84, 0.18); color: #ff8b8b; }
+.monitoring-state.pending { background: rgba(255, 190, 71, 0.18); color: #ffd17b; }
+
+@media (max-width: 640px) {
+  .monitoring-service { align-items: flex-start; flex-direction: column; }
+  .monitoring-service-state { align-items: flex-start; }
+}
