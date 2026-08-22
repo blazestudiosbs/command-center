@@ -112,7 +112,7 @@ export default function GmailPage() {
                 <div><strong>{message.subject}</strong><small>{message.sender}</small></div>
                 <div className="gmail-preview-labels">
                   {message.labels.map((label) => <span key={label}>{label}</span>)}
-                  <small>Will remove from Inbox</small>
+                  <small>{message.confidence === "high" ? "High-confidence match" : "Needs review"} · Will remove from Inbox</small>
                 </div>
               </article>
             ))}

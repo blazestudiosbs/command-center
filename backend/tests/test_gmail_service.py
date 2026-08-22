@@ -119,10 +119,11 @@ class GmailServiceTests(unittest.TestCase):
 
         self.assertEqual(preview["mode"], "simulation")
         self.assertFalse(preview["cloud_processing"])
-        self.assertEqual(preview["messages"][0]["category"], "Shopping")
+        self.assertEqual(preview["messages"][0]["category"], "Shopping/Shipping")
+        self.assertEqual(preview["messages"][0]["confidence"], "high")
         self.assertEqual(
             preview["messages"][0]["labels"],
-            ["Vera/Categories/Shopping", "Vera/Senders/Amazon Orders"],
+            ["Vera/Shopping/Shipping", "Vera/Senders/Amazon Orders"],
         )
         self.assertTrue(preview["messages"][0]["remove_from_inbox"])
         self.assertEqual(post.call_count, 1)
@@ -130,6 +131,22 @@ class GmailServiceTests(unittest.TestCase):
 
     def test_sender_label_is_sanitized(self):
         self.assertEqual(gmail_service._safe_label("Bad/Label\nName", "Unknown"), "Bad-Label-Name")
+
+    def test_uncertain_message_is_sent_to_needs_review(self):
+        self.assertEqual(
+            gmail_service._classification("A Person <person@example.com>", "Hello there"),
+            ("Needs Review", "low"),
+        )
+
+    def test_detailed_categories_are_prioritized(self):
+        self.assertEqual(
+            gmail_service._classification("My Bank <alerts@bank.example>", "Your account statement is ready"),
+            ("Financial/Banking", "high"),
+        )
+        self.assertEqual(
+            gmail_service._classification("Airline <travel@example.com>", "Your boarding pass"),
+            ("Travel/Flights", "high"),
+        )
 
 
 if __name__ == "__main__":

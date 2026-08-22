@@ -235,16 +235,30 @@ def _safe_label(value: str, fallback: str) -> str:
     return (cleaned or fallback)[:80]
 
 
-def _classification(sender: str, subject: str) -> str:
+def _classification(sender: str, subject: str) -> tuple[str, str]:
     text = f"{sender} {subject}".lower()
     rules = (
-        ("Security", ("security", "verification", "verify", "password", "login", "sign-in", "2fa")),
-        ("Bills", ("bill", "invoice", "payment", "statement", "due", "utility")),
-        ("Shopping", ("order", "shipped", "delivery", "receipt", "amazon", "purchase")),
-        ("Subscriptions", ("newsletter", "digest", "subscription", "weekly update")),
-        ("Travel", ("flight", "hotel", "reservation", "booking", "itinerary")),
+        ("Accounts/Passwords", ("password reset", "change your password", "password changed")),
+        ("Accounts/Verification", ("verification code", "verify your", "confirm your email", "one-time code", "2fa")),
+        ("Accounts/Security", ("security alert", "new login", "new sign-in", "suspicious", "unrecognized device")),
+        ("Financial/Taxes", ("tax", "irs", "1099", "w-2", "w2 ", "tax return")),
+        ("Financial/Banking", ("bank", "credit union", "account statement", "balance alert", "deposit")),
+        ("Financial/Payments", ("payment received", "payment sent", "payment confirmation", "autopay", "paid")),
+        ("Financial/Bills", ("bill", "invoice", "amount due", "due date", "utility statement")),
+        ("Shopping/Shipping", ("shipped", "out for delivery", "delivered", "tracking number", "shipment")),
+        ("Shopping/Receipts", ("receipt", "purchase confirmation", "thanks for your purchase")),
+        ("Shopping/Orders", ("order confirmation", "your order", "order #", "amazon order")),
+        ("Shopping/Promotions", ("sale", "coupon", "% off", "limited time", "special offer", "deal")),
+        ("Travel/Flights", ("flight", "boarding pass", "airline", "departure gate")),
+        ("Travel/Hotels", ("hotel", "check-in", "check out", "room reservation")),
+        ("Travel/Reservations", ("reservation", "booking", "itinerary", "rental car")),
+        ("Personal/Medical", ("appointment", "patient", "prescription", "pharmacy", "medical", "health portal")),
+        ("Personal/Education", ("school", "teacher", "student", "classroom", "tuition", "course")),
+        ("Subscriptions/Entertainment", ("netflix", "spotify", "streaming", "new episode", "watch now")),
+        ("Subscriptions/Newsletters", ("newsletter", "digest", "weekly update", "unsubscribe")),
     )
-    return next((category for category, keywords in rules if any(word in text for word in keywords)), "General")
+    match = next((category for category, keywords in rules if any(word in text for word in keywords)), None)
+    return (match, "high") if match else ("Needs Review", "low")
 
 
 def organizer_preview(user_id: str, limit: int = 20) -> dict:
@@ -276,7 +290,8 @@ def organizer_preview(user_id: str, limit: int = 20) -> dict:
         sender_raw = header_values.get("from", "Unknown sender")
         display_name, email_address = parseaddr(sender_raw)
         sender_name = _safe_label(display_name or email_address, "Unknown sender")
-        category = _classification(sender_raw, header_values.get("subject", ""))
+        category, confidence = _classification(sender_raw, header_values.get("subject", ""))
+        category_label = f"Vera/{category}"
         proposals.append(
             {
                 "message_id": item["id"],
@@ -284,7 +299,8 @@ def organizer_preview(user_id: str, limit: int = 20) -> dict:
                 "subject": header_values.get("subject") or "(no subject)",
                 "date": header_values.get("date"),
                 "category": category,
-                "labels": [f"Vera/Categories/{category}", f"Vera/Senders/{sender_name}"],
+                "confidence": confidence,
+                "labels": [category_label, f"Vera/Senders/{sender_name}"],
                 "remove_from_inbox": True,
                 "simulation": True,
             }
