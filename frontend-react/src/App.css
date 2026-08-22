@@ -279,6 +279,43 @@ body {
   color: #fca5a5;
 }
 
+.home-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.home-status span,
+.home-entity {
+  padding: 16px;
+  border: 1px solid #263449;
+  border-radius: 12px;
+  background: #111827;
+}
+
+.home-status span,
+.home-entity div {
+  display: grid;
+  gap: 5px;
+}
+
+.home-status small,
+.home-entity small {
+  color: #94a3b8;
+}
+
+.home-entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.home-entity {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 @media (max-width: 640px) {
   .vera-control {
     align-items: flex-start;

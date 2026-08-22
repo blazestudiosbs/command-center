@@ -13,6 +13,7 @@ import AutomationPage from "./pages/Automation";
 import SettingsPage from "./pages/Settings";
 import LoginPage from "./pages/Login";
 import JournalPage from "./pages/Journal";
+import HomePage from "./pages/Home";
 import { getCurrentUser, logout } from "./services/api";
 import VeraControl from "./components/VeraControl";
 
@@ -20,6 +21,7 @@ const navItems = [
   { id: "dashboard", label: "Dashboard" },
   { id: "advisor", label: "Advisor" },
   { id: "journal", label: "Decision Journal" },
+  { id: "home", label: "Home" },
   { id: "projects", label: "Projects" },
   { id: "infrastructure", label: "Infrastructure" },
   { id: "minecraft", label: "Minecraft" },
@@ -34,6 +36,7 @@ const pageMap = {
   dashboard: DashboardPage,
   advisor: AdvisorPage,
   journal: JournalPage,
+  home: HomePage,
   projects: ProjectsPage,
   infrastructure: InfrastructurePage,
   minecraft: MinecraftPage,

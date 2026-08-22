@@ -87,6 +87,11 @@ export async function getStatus() {
   return res.data;
 }
 
+export async function getHomeAssistantOverview() {
+  const res = await axios.get("/api/home-assistant/overview");
+  return res.data;
+}
+
 export async function getAnalysis() {
   const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;
