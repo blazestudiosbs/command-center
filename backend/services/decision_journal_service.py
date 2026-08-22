@@ -71,6 +71,7 @@ def _source_records() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[
                OR action LIKE 'permission.%'
                OR action LIKE 'home_assistant.%'
                OR action LIKE 'service_monitor.%'
+               OR action LIKE 'gmail.%'
             ORDER BY created_utc DESC, id DESC
             """
         ).fetchall()

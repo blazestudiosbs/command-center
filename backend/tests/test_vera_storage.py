@@ -56,6 +56,7 @@ class VeraStorageTests(unittest.TestCase):
                 (8, "conversation_cloud_policy"),
                 (9, "service_monitoring"),
                 (10, "monitoring_notification_preferences"),
+                (11, "gmail_oauth"),
             ],
         )
         self.assertTrue(
@@ -75,6 +76,8 @@ class VeraStorageTests(unittest.TestCase):
                 "service_monitor_state",
                 "monitoring_notification_settings",
                 "monitoring_service_notification_preferences",
+                "gmail_connections",
+                "gmail_oauth_states",
             }.issubset(tables)
         )
 

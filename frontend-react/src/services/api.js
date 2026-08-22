@@ -121,6 +121,21 @@ export async function checkMonitoringNow() {
   return res.data;
 }
 
+export async function getGmailStatus() {
+  const res = await axios.get("/api/gmail/status");
+  return res.data;
+}
+
+export async function startGmailOAuth() {
+  const res = await axios.post("/api/gmail/oauth/start", null, { headers: csrfHeaders() });
+  return res.data.authorization_url;
+}
+
+export async function disconnectGmail() {
+  const res = await axios.post("/api/gmail/disconnect", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getAnalysis() {
   const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;
