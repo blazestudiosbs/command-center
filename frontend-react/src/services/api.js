@@ -109,6 +109,18 @@ export async function updateMonitoringNotifications(preferences) {
   return res.data;
 }
 
+export async function getMonitoringHistory(limit = 10) {
+  const res = await axios.get(`/api/monitoring/history?limit=${encodeURIComponent(limit)}`);
+  return res.data.events;
+}
+
+export async function checkMonitoringNow() {
+  const res = await axios.post("/api/monitoring/check", null, {
+    headers: csrfHeaders(),
+  });
+  return res.data;
+}
+
 export async function getAnalysis() {
   const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;

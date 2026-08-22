@@ -140,6 +140,27 @@ class ServiceMonitoringTests(unittest.TestCase):
                 ],
             )
 
+    def test_history_returns_recent_outages_and_recoveries(self):
+        service_monitoring_service.set_notification_preferences(
+            alerts_enabled=False,
+            cooldown=300,
+            services=[],
+        )
+        running = {name: {"status": "running", "detail": "running"} for name in ("command-center", "plex")}
+        stopped = dict(running)
+        stopped["plex"] = {"status": "stopped", "detail": "exited"}
+        service_monitoring_service.record_snapshot(running, now="2026-08-21T12:00:00Z")
+        service_monitoring_service.record_snapshot(stopped, now="2026-08-21T12:01:00Z")
+        service_monitoring_service.record_snapshot(running, now="2026-08-21T12:02:00Z")
+
+        history = service_monitoring_service.get_history(limit=10)
+
+        self.assertEqual([event["event"] for event in history], ["recovery", "outage"])
+        self.assertEqual(history[0]["display_name"], "Plex")
+        self.assertEqual(history[0]["from_status"], "stopped")
+        self.assertEqual(history[0]["to_status"], "running")
+        self.assertFalse(history[0]["alert_sent"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,41 @@ def notifications(_session: dict = Depends(current_session)):
     return service_monitoring_service.get_notification_preferences()
 
 
+@router.get("/history")
+def history(limit: int = 10, _session: dict = Depends(current_session)):
+    return {"events": service_monitoring_service.get_history(limit)}
+
+
+@router.post("/check")
+def check_now(session: dict = Depends(require_csrf)):
+    try:
+        transitions = service_monitoring_service.check_once()
+    except Exception as exc:
+        audit_service.append_event(
+            actor_user_id=session["user_id"],
+            action="service_monitor.check",
+            resource_type="service_monitor",
+            resource_id="global",
+            outcome="failed",
+            details={"reason": str(exc), "automatic_restarts": False},
+        )
+        raise HTTPException(status_code=503, detail="Docker service check is currently unavailable.") from exc
+    audit_service.append_event(
+        actor_user_id=session["user_id"],
+        action="service_monitor.check",
+        resource_type="service_monitor",
+        resource_id="global",
+        outcome="succeeded",
+        details={"transition_count": len(transitions), "automatic_restarts": False},
+    )
+    return {
+        "checked": True,
+        "transition_count": len(transitions),
+        "transitions": transitions,
+        "status": service_monitoring_service.get_status(),
+    }
+
+
 @router.put("/notifications")
 def update_notifications(
     request: NotificationPreferencesRequest,

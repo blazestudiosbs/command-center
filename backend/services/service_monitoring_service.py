@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timezone
 from typing import Callable
@@ -249,6 +250,39 @@ def record_snapshot(
 
 def check_once() -> list[dict]:
     return record_snapshot(docker_snapshot())
+
+
+def get_history(limit: int = 10) -> list[dict]:
+    safe_limit = max(1, min(int(limit), 100))
+    with connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, action, resource_id, outcome, details_json, created_utc
+            FROM audit_events
+            WHERE action IN ('service_monitor.outage', 'service_monitor.recovery')
+            ORDER BY created_utc DESC, id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+    history = []
+    for row in rows:
+        details = json.loads(row["details_json"])
+        history.append(
+            {
+                "id": row["id"],
+                "event": "recovery" if row["action"].endswith("recovery") else "outage",
+                "container_name": row["resource_id"],
+                "display_name": details.get("display_name") or _display_name(row["resource_id"]),
+                "from_status": details.get("from_status"),
+                "to_status": details.get("to_status"),
+                "detail": details.get("detail"),
+                "alert_sent": bool(details.get("alert_sent")),
+                "alert_suppressed": details.get("alert_suppressed"),
+                "created_utc": row["created_utc"],
+            }
+        )
+    return history
 
 
 def get_status() -> dict:

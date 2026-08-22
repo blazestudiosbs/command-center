@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   getMonitoringNotifications,
+  getMonitoringHistory,
   getMonitoringStatus,
+  checkMonitoringNow,
   updateMonitoringNotifications,
 } from "../../services/api";
 
@@ -15,20 +17,43 @@ export default function MonitoringPage() {
   const [preferences, setPreferences] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState("");
+  const [history, setHistory] = useState([]);
+  const [checking, setChecking] = useState(false);
+  const [checkMessage, setCheckMessage] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (includePreferences = true) => {
     try {
-      const [status, notificationPreferences] = await Promise.all([
+      const [status, events, notificationPreferences] = await Promise.all([
         getMonitoringStatus(),
-        getMonitoringNotifications(),
+        getMonitoringHistory(10),
+        includePreferences ? getMonitoringNotifications() : Promise.resolve(null),
       ]);
       setMonitoring(status);
-      setPreferences(notificationPreferences);
+      setHistory(events);
+      if (notificationPreferences) setPreferences(notificationPreferences);
       setError("");
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Service monitoring unavailable");
     }
   }, []);
+
+  async function checkNow() {
+    setChecking(true);
+    setCheckMessage("");
+    try {
+      const result = await checkMonitoringNow();
+      setMonitoring(result.status);
+      setCheckMessage(result.transition_count
+        ? `${result.transition_count} state change${result.transition_count === 1 ? "" : "s"} detected.`
+        : "Check complete. No state changes detected.");
+      setHistory(await getMonitoringHistory(10));
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || "Service check unavailable");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   function changeService(containerName, field, value) {
     setPreferences((current) => ({
@@ -55,7 +80,7 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, 30000);
+    const timer = window.setInterval(() => load(false), 30000);
     return () => window.clearInterval(timer);
   }, [load]);
 
@@ -67,9 +92,15 @@ export default function MonitoringPage() {
           <h1>Service Monitoring</h1>
           <p className="page-subtitle">Read-only container awareness with alerts only when a service changes state.</p>
         </div>
-        <button type="button" className="secondary-button" onClick={load}>Refresh</button>
+        <div className="monitoring-header-actions">
+          <button type="button" className="secondary-button" onClick={() => load(true)}>Refresh</button>
+          <button type="button" className="secondary-button" disabled={checking} onClick={checkNow}>
+            {checking ? "Checking…" : "Check now"}
+          </button>
+        </div>
       </header>
       {error && <p className="journal-error">{error}</p>}
+      {checkMessage && <p className="monitoring-check-message">{checkMessage}</p>}
       <section className="home-status" aria-label="Monitoring summary">
         <span><small>Healthy</small><strong>{summary?.healthy ?? "—"}</strong></span>
         <span><small>Unavailable</small><strong>{summary?.unavailable ?? "—"}</strong></span>
@@ -92,6 +123,20 @@ export default function MonitoringPage() {
               <span className={`monitoring-state ${service.status}`}>{service.status}</span>
               <small>Checked {timestamp(service.last_checked_utc)}</small>
             </div>
+          </article>
+        ))}
+      </section>
+      <section className="monitoring-history" aria-label="Recent service history">
+        <h2>Recent outages and recoveries</h2>
+        {history.length === 0 && <p className="answer">No service state changes have been recorded.</p>}
+        {history.map((event) => (
+          <article className="monitoring-history-event" key={event.id}>
+            <span className={`monitoring-state ${event.event === "recovery" ? "running" : "stopped"}`}>{event.event}</span>
+            <div>
+              <strong>{event.display_name}</strong>
+              <small>{event.from_status} → {event.to_status} · {timestamp(event.created_utc)}</small>
+            </div>
+            <small>{event.alert_sent ? "Discord notified" : "Journal only"}</small>
           </article>
         ))}
       </section>

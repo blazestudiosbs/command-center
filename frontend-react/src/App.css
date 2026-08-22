@@ -2169,6 +2169,19 @@ button:disabled {
 .monitoring-state.missing { background: rgba(239, 84, 84, 0.18); color: #ff8b8b; }
 .monitoring-state.pending { background: rgba(255, 190, 71, 0.18); color: #ffd17b; }
 
+.monitoring-header-actions { display: flex; gap: 0.65rem; }
+.monitoring-check-message { color: #70e2a8; }
+.monitoring-history { margin-top: 1.5rem; }
+.monitoring-history-event {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto 1fr auto;
+  padding: 0.8rem 0;
+}
+.monitoring-history-event div { display: flex; flex-direction: column; gap: 0.2rem; }
+
 .monitoring-preferences {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2219,6 +2232,9 @@ button:disabled {
 @media (max-width: 640px) {
   .monitoring-service { align-items: flex-start; flex-direction: column; }
   .monitoring-service-state { align-items: flex-start; }
+  .monitoring-header-actions { align-items: stretch; flex-direction: column; }
+  .monitoring-history-event { align-items: flex-start; grid-template-columns: auto 1fr; }
+  .monitoring-history-event > small { grid-column: 2; }
   .monitoring-preferences-heading,
   .monitoring-preference-row { align-items: flex-start; flex-wrap: wrap; }
   .monitoring-preference-row strong { flex-basis: 100%; }
