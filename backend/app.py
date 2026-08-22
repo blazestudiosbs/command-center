@@ -16,19 +16,21 @@ from datetime import datetime
 from typing import List, Optional
 
 from routers.auth import router as auth_router
+from routers.agents import router as agents_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
-from services import advisor_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
+from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
 
 async def service_monitor_loop():
     while True:
         try:
-            await asyncio.to_thread(service_monitoring_service.check_once)
+            if agent_permission_service.is_allowed("owner", "service_monitor", "background_checks"):
+                await asyncio.to_thread(service_monitoring_service.check_once)
         except Exception as exc:
             print(f"Service monitoring check failed: {exc}")
         await asyncio.sleep(service_monitoring_service.interval_seconds())
@@ -49,6 +51,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(agents_router)
 app.include_router(control_router)
 app.include_router(home_assistant_router)
 app.include_router(gmail_router)
@@ -805,6 +808,10 @@ def get_task_events(task_id: str):
 @app.post("/api/tasks/{task_id}/run-command")
 def run_task_command(task_id: str, request: TaskRunCommandRequest, session: dict = Depends(require_csrf)):
     try:
+        agent_permission_service.require(session["user_id"], "development_worker", "manual_tasks")
+    except agent_permission_service.AgentPermissionDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    try:
         result = task_service.run_task_command(task_id, request.command_key, actor_user_id=session["user_id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -820,6 +827,10 @@ def run_task_command(task_id: str, request: TaskRunCommandRequest, session: dict
 
 @app.post("/api/tasks/{task_id}/run-validation")
 def run_task_validation(task_id: str, session: dict = Depends(require_csrf)):
+    try:
+        agent_permission_service.require(session["user_id"], "development_worker", "manual_tasks")
+    except agent_permission_service.AgentPermissionDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     results = []
     for command_key in task_service.VALIDATION_COMMAND_KEYS:
         try:
@@ -836,6 +847,10 @@ def run_task_validation(task_id: str, session: dict = Depends(require_csrf)):
 
 @app.post("/api/tasks/{task_id}/run-rebuild")
 def run_task_rebuild(task_id: str, session: dict = Depends(require_csrf)):
+    try:
+        agent_permission_service.require(session["user_id"], "development_worker", "manual_tasks")
+    except agent_permission_service.AgentPermissionDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     results = []
     for command_key in task_service.REBUILD_COMMAND_KEYS:
         try:

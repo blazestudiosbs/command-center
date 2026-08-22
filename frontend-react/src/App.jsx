@@ -16,6 +16,7 @@ import JournalPage from "./pages/Journal";
 import HomePage from "./pages/Home";
 import MonitoringPage from "./pages/Monitoring";
 import GmailPage from "./pages/Gmail";
+import AgentsPage from "./pages/Agents";
 import { getCurrentUser, logout } from "./services/api";
 import VeraControl from "./components/VeraControl";
 
@@ -26,6 +27,7 @@ const navItems = [
   { id: "home", label: "Home" },
   { id: "monitoring", label: "Monitoring" },
   { id: "gmail", label: "Gmail" },
+  { id: "agents", label: "Agent Permissions" },
   { id: "projects", label: "Projects" },
   { id: "infrastructure", label: "Infrastructure" },
   { id: "minecraft", label: "Minecraft" },
@@ -43,6 +45,7 @@ const pageMap = {
   home: HomePage,
   monitoring: MonitoringPage,
   gmail: GmailPage,
+  agents: AgentsPage,
   projects: ProjectsPage,
   infrastructure: InfrastructurePage,
   minecraft: MinecraftPage,

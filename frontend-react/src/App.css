@@ -2265,3 +2265,29 @@ button:disabled {
 @media (max-width: 760px) {
   .gmail-safety-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.agent-permission-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.agent-permission-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+}
+.agent-permission-card.disabled { opacity: 0.72; }
+.agent-permission-heading { align-items: flex-start; display: flex; gap: 1rem; justify-content: space-between; }
+.agent-permission-heading h2 { margin: 0; }
+.agent-permission-heading p { margin: 0.35rem 0 0; }
+.agent-switch { align-items: center; display: flex; gap: 0.4rem; font-weight: 700; }
+.agent-capabilities { border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem; }
+.agent-capabilities label {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem 0;
+}
+.agent-capabilities label span { display: flex; flex-direction: column; }
+.agent-capabilities label.locked { opacity: 0.55; }
+
+@media (max-width: 800px) {
+  .agent-permission-grid { grid-template-columns: 1fr; }
+}

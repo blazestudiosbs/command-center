@@ -3,7 +3,7 @@ import re
 
 import requests
 
-from services import audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
+from services import agent_permission_service, audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
 
 
 SYSTEM_PROMPT = """/no_think
@@ -147,6 +147,7 @@ def _clean_model_text(value: str, *, require_final_envelope: bool = False) -> st
 
 
 def respond(*, owner_user_id: str, conversation_id: str, content: str, client_message_id: str, source: str) -> dict:
+    agent_permission_service.require(owner_user_id, "vera_conversation", "conversation")
     policy_service.require(user_id=owner_user_id, domain="conversation", capability="conversation")
     user_message = conversation_service.add_message(
         conversation_id=conversation_id,
@@ -243,7 +244,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
         selected_provider = "local"
     except Exception as exc:
         local_error = exc
-        if not router_service.cloud_routing_enabled():
+        if not router_service.cloud_routing_enabled() or not agent_permission_service.is_allowed(owner_user_id, "vera_conversation", "cloud_fallback"):
             audit_service.append_event(
                 actor_user_id=owner_user_id,
                 action="conversation.route",

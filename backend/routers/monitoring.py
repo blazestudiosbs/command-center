@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from routers.auth import current_session, require_csrf
-from services import audit_service, service_monitoring_service
+from services import agent_permission_service, audit_service, service_monitoring_service
 
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
@@ -37,6 +37,10 @@ def history(limit: int = 10, _session: dict = Depends(current_session)):
 
 @router.post("/check")
 def check_now(session: dict = Depends(require_csrf)):
+    try:
+        agent_permission_service.require(session["user_id"], "service_monitor", "manual_checks")
+    except agent_permission_service.AgentPermissionDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     try:
         transitions = service_monitoring_service.check_once()
     except Exception as exc:

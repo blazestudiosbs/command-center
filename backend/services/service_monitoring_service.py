@@ -5,7 +5,7 @@ from typing import Callable
 
 import docker
 
-from services import audit_service, discord_alert_service
+from services import agent_permission_service, audit_service, discord_alert_service
 from storage import connection
 
 
@@ -200,7 +200,10 @@ def record_snapshot(
                 else service_preference["outage_alerts_enabled"]
             )
             cooldown_elapsed = not last_alerted or not checked or (checked - last_alerted).total_seconds() >= preferences["cooldown_seconds"]
-            alert_allowed = preferences["alerts_enabled"] and transition_enabled and cooldown_elapsed
+            agent_alerts_allowed = agent_permission_service.is_allowed(
+                "owner", "service_monitor", "discord_alerts"
+            )
+            alert_allowed = preferences["alerts_enabled"] and transition_enabled and cooldown_elapsed and agent_alerts_allowed
             action = "service_monitor.recovery" if status == "running" else "service_monitor.outage"
             outcome = "succeeded" if status == "running" else "failed"
             transition = {
@@ -215,6 +218,8 @@ def record_snapshot(
             }
             if not preferences["alerts_enabled"]:
                 transition["alert_suppressed"] = "alerts_disabled"
+            elif not agent_alerts_allowed:
+                transition["alert_suppressed"] = "agent_permission"
             elif not transition_enabled:
                 transition["alert_suppressed"] = "service_preference"
             elif not cooldown_elapsed:

@@ -136,6 +136,20 @@ export async function disconnectGmail() {
   return res.data;
 }
 
+export async function getAgents() {
+  const res = await axios.get("/api/agents");
+  return res.data.agents;
+}
+
+export async function updateAgentPermission(agentId, capability, enabled) {
+  const res = await axios.put(
+    "/api/agents/permissions",
+    { agent_id: agentId, capability, enabled },
+    { headers: csrfHeaders() },
+  );
+  return res.data.agent;
+}
+
 export async function getAnalysis() {
   const res = await axios.post("/api/analyze", null, { headers: csrfHeaders() });
   return res.data.analysis;
