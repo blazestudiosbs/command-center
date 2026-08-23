@@ -16,6 +16,7 @@ from storage import connection
 
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
+GMAIL_FULL_SCOPE = "https://mail.google.com/"
 CATEGORIES = (
     "Accounts/Passwords", "Accounts/Verification", "Accounts/Security",
     "Financial/Taxes", "Financial/Banking", "Financial/Payments", "Financial/Bills",
@@ -91,14 +92,16 @@ def get_status(user_id: str) -> dict:
         ).fetchone()
     is_configured = configured()
     is_connected = row is not None
+    scopes = json.loads(row["scopes_json"]) if row else [GMAIL_MODIFY_SCOPE]
     return {
         "provider": "gmail",
         "configured": is_configured,
         "connected": is_connected,
         "status": "connected" if is_connected else ("ready_to_connect" if is_configured else "not_configured"),
         "email_address": row["email_address"] if row else None,
-        "scopes": json.loads(row["scopes_json"]) if row else [GMAIL_MODIFY_SCOPE],
-        "organizer_authorized": bool(row and GMAIL_MODIFY_SCOPE in json.loads(row["scopes_json"])),
+        "scopes": scopes,
+        "organizer_authorized": bool(row and (GMAIL_MODIFY_SCOPE in scopes or GMAIL_FULL_SCOPE in scopes)),
+        "permanent_delete_authorized": bool(row and GMAIL_FULL_SCOPE in scopes),
         "access": "read_only",
         "can_send": False,
         "can_modify": False,
@@ -113,7 +116,7 @@ def get_status(user_id: str) -> dict:
     }
 
 
-def authorization_url(user_id: str) -> str:
+def authorization_url(user_id: str, *, permanent_delete: bool = False) -> str:
     if not configured():
         raise RuntimeError("Gmail OAuth is not configured.")
     config = _config()
@@ -130,7 +133,7 @@ def authorization_url(user_id: str) -> str:
             "client_id": config["client_id"],
             "redirect_uri": config["redirect_uri"],
             "response_type": "code",
-            "scope": GMAIL_MODIFY_SCOPE,
+            "scope": GMAIL_FULL_SCOPE if permanent_delete else GMAIL_MODIFY_SCOPE,
             "access_type": "offline",
             "include_granted_scopes": "true",
             "prompt": "consent",

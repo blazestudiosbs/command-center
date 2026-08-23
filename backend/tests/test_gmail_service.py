@@ -51,6 +51,11 @@ class GmailServiceTests(unittest.TestCase):
             row = conn.execute("SELECT * FROM gmail_oauth_states WHERE state = ?", (query["state"][0],)).fetchone()
         self.assertEqual(row["user_id"], "owner")
 
+    def test_permanent_delete_authorization_is_explicit_and_separate(self):
+        authorization_url = gmail_service.authorization_url("owner", permanent_delete=True)
+        query = parse_qs(urlparse(authorization_url).query)
+        self.assertEqual(query["scope"], [gmail_service.GMAIL_FULL_SCOPE])
+
     @patch("services.gmail_service.requests.get")
     @patch("services.gmail_service.requests.post")
     def test_callback_encrypts_refresh_token_and_connects(self, post, get):

@@ -126,8 +126,8 @@ export async function getGmailStatus() {
   return res.data;
 }
 
-export async function startGmailOAuth() {
-  const res = await axios.post("/api/gmail/oauth/start", null, { headers: csrfHeaders() });
+export async function startGmailOAuth(permanentDelete = false) {
+  const res = await axios.post(`/api/gmail/oauth/start?permanent_delete=${permanentDelete}`, null, { headers: csrfHeaders() });
   return res.data.authorization_url;
 }
 
@@ -143,6 +143,44 @@ export async function previewGmailOrganizer() {
 
 export async function getGmailLearningStatus() {
   const res = await axios.get("/api/gmail/learning/status");
+  return res.data;
+}
+
+export async function setGmailCloudLearningEnabled(enabled) {
+  const res = await axios.put("/api/gmail/learning/cloud/settings", { enabled }, { headers: csrfHeaders() });
+  return res.data;
+}
+
+export async function runGmailCloudLearning() {
+  const res = await axios.post("/api/gmail/learning/cloud/run", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
+export async function getGmailCloudSuggestions() {
+  const res = await axios.get("/api/gmail/learning/suggestions");
+  return res.data.suggestions;
+}
+
+export async function reviewGmailCloudSuggestion(suggestionId, approve) {
+  const res = await axios.post(
+    "/api/gmail/learning/suggestions/review",
+    { suggestion_id: suggestionId, approve },
+    { headers: csrfHeaders() },
+  );
+  return res.data;
+}
+
+export async function getGmailAutomationRules() {
+  const res = await axios.get("/api/gmail/rules");
+  return res.data.rules;
+}
+
+export async function reviewGmailAutomationRule(ruleId, approve) {
+  const res = await axios.post(
+    "/api/gmail/rules/review",
+    { rule_id: ruleId, approve },
+    { headers: csrfHeaders() },
+  );
   return res.data;
 }
 

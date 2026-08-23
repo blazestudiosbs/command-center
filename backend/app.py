@@ -22,7 +22,7 @@ from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
-from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
+from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -41,9 +41,19 @@ async def gmail_organizer_loop():
         try:
             if agent_permission_service.is_allowed("owner", "gmail", "organize_and_file"):
                 await asyncio.to_thread(gmail_service.run_organizer, "owner")
+            await asyncio.to_thread(gmail_rule_service.run_active_rules, "owner")
         except Exception as exc:
             print(f"Gmail organizer check failed: {exc}")
         await asyncio.sleep(300)
+
+
+async def gmail_cloud_learning_loop():
+    while True:
+        try:
+            await asyncio.to_thread(gmail_cloud_learning_service.run_if_due, "owner")
+        except Exception as exc:
+            print(f"Gmail cloud learning check failed safely: {type(exc).__name__}")
+        await asyncio.sleep(3600)
 
 
 @asynccontextmanager
@@ -52,15 +62,19 @@ async def lifespan(_app: FastAPI):
     auth_service.sync_owner()
     monitor_task = asyncio.create_task(service_monitor_loop())
     gmail_task = asyncio.create_task(gmail_organizer_loop())
+    gmail_learning_task = asyncio.create_task(gmail_cloud_learning_loop())
     try:
         yield
     finally:
         monitor_task.cancel()
         gmail_task.cancel()
+        gmail_learning_task.cancel()
         with suppress(asyncio.CancelledError):
             await monitor_task
         with suppress(asyncio.CancelledError):
             await gmail_task
+        with suppress(asyncio.CancelledError):
+            await gmail_learning_task
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)

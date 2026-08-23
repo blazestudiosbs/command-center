@@ -4,7 +4,7 @@ import re
 import requests
 
 from services import agent_permission_service, audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
-from services import gmail_service
+from services import gmail_rule_service, gmail_service
 
 
 SYSTEM_PROMPT = """/no_think
@@ -155,6 +155,24 @@ def _gmail_answer(owner_user_id: str, content: str) -> str | None:
     return heading + "\n" + "\n".join(lines)
 
 
+def _gmail_rule_answer(owner_user_id: str, content: str, source: str) -> str | None:
+    request = gmail_rule_service.parse_rule_request(content)
+    if not request:
+        return None
+    try:
+        rule = gmail_rule_service.propose(owner_user_id, request["sender"], source=source)
+    except agent_permission_service.AgentPermissionDeniedError:
+        return "The Gmail Agent’s search permission is off. Enable it in Agent Permissions before I validate this rule."
+    except RuntimeError as exc:
+        return str(exc)
+    return (
+        f"I validated an exact-sender permanent-delete rule for {rule['sender']}. "
+        f"Gmail estimates {rule['validation_match_count']} existing matching message"
+        f"{'s' if rule['validation_match_count'] != 1 else ''}. The rule is pending—not active. "
+        "Review it on the Gmail page and enable the permanent-delete permission before approving it."
+    )
+
+
 def _local_max_output_tokens() -> int:
     try:
         value = int(os.getenv("VERA_LOCAL_MAX_OUTPUT_TOKENS", "512"))
@@ -206,7 +224,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     if user_message["id"] != existing[-1]["id"]:
         return {"duplicate": True, "user_message": user_message, "assistant_message": None}
 
-    monitoring_text = _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source) or _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
