@@ -516,3 +516,21 @@ def run_organizer(user_id: str, limit: int = 100, include_existing: bool = False
         except requests.RequestException:
             failed += 1
     return {"status": "completed", "processed": processed, "failed": failed}
+
+
+def search_metadata(user_id: str, query: str, limit: int = 5) -> list[dict]:
+    safe_limit = max(1, min(int(limit), 10))
+    access_token = _access_token(user_id)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(
+        MESSAGES_URL,
+        headers=headers,
+        params={"q": query.strip(), "maxResults": safe_limit, "includeSpamTrash": "false"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    results = []
+    for item in (response.json().get("messages") or [])[:safe_limit]:
+        metadata = _message_metadata(access_token, item["id"])
+        results.append({"message_id": item["id"], **metadata})
+    return results

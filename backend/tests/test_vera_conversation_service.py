@@ -155,6 +155,36 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertIn("no matching recent incidents", result["assistant_message"]["content"])
         post.assert_not_called()
 
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.gmail_service.search_metadata")
+    @patch("services.vera_conversation_service.gmail_service.get_status", return_value={"connected": True})
+    def test_recent_email_question_uses_local_gmail_metadata(self, _status, search, post):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(
+            user_id="owner", agent_id="gmail", capability="read_inbox", enabled=True
+        )
+        search.return_value = [
+            {"message_id": "m1", "subject": "Your order shipped", "sender": "Store <store@example.com>"}
+        ]
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(
+            owner_user_id="owner", conversation_id=conversation["id"],
+            content="Do I have any new emails?", client_message_id="discord:gmail-1", source="discord",
+        )
+        self.assertIn("Your order shipped", result["assistant_message"]["content"])
+        self.assertEqual(search.call_args.args[1], "is:unread newer_than:7d")
+        post.assert_not_called()
+
+    @patch("services.vera_conversation_service.requests.post")
+    def test_disabled_gmail_permission_returns_local_guidance(self, post):
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(
+            owner_user_id="owner", conversation_id=conversation["id"],
+            content="Do I have unread email?", client_message_id="discord:gmail-2", source="discord",
+        )
+        self.assertIn("permission is off", result["assistant_message"]["content"])
+        post.assert_not_called()
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

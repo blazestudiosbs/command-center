@@ -4,6 +4,7 @@ import re
 import requests
 
 from services import agent_permission_service, audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
+from services import gmail_service
 
 
 SYSTEM_PROMPT = """/no_think
@@ -110,6 +111,50 @@ def _monitoring_answer(content: str) -> str | None:
     )
 
 
+def _gmail_question(content: str) -> tuple[str, str] | None:
+    lowered = content.lower().strip()
+    if not re.search(r"\b(email|emails|gmail|inbox|mail)\b", lowered):
+        return None
+    search_match = re.search(r"(?:search|find|look for)(?: my)? (?:email|emails|gmail|mail)(?: for| from)?\s+(.+)", content, re.IGNORECASE)
+    if search_match:
+        term = search_match.group(1).strip(" ?.!")
+        return "search", term
+    from_match = re.search(r"(?:email|emails|mail) from\s+(.+)", content, re.IGNORECASE)
+    if from_match:
+        return "search", f"from:{from_match.group(1).strip(' ?.!')}"
+    if re.search(r"\b(unread|new|recent|today|anything)\b", lowered):
+        query = "is:unread newer_than:7d" if "unread" in lowered or "new" in lowered else "newer_than:7d"
+        return "recent", query
+    return None
+
+
+def _gmail_answer(owner_user_id: str, content: str) -> str | None:
+    intent = _gmail_question(content)
+    if not intent:
+        return None
+    mode, value = intent
+    capability = "search" if mode == "search" else "read_inbox"
+    if not agent_permission_service.is_allowed(owner_user_id, "gmail", capability):
+        return f"The Gmail Agent’s {capability.replace('_', ' ')} permission is off. You can enable it in Agent Permissions."
+    if not gmail_service.get_status(owner_user_id)["connected"]:
+        return "Gmail is not connected to Vera."
+    query = value if mode == "recent" else value
+    messages = gmail_service.search_metadata(owner_user_id, query, limit=5)
+    audit_service.append_event(
+        actor_user_id=owner_user_id,
+        action="gmail.search" if mode == "search" else "gmail.read",
+        resource_type="gmail_connection",
+        resource_id=owner_user_id,
+        outcome="succeeded",
+        details={"result_count": len(messages), "metadata_only": True, "cloud_processing": False},
+    )
+    if not messages:
+        return "I found no matching Gmail messages."
+    heading = f"I found {len(messages)} matching Gmail message{'s' if len(messages) != 1 else ''}:"
+    lines = [f"- {item['subject']} — from {item['sender']}" for item in messages]
+    return heading + "\n" + "\n".join(lines)
+
+
 def _local_max_output_tokens() -> int:
     try:
         value = int(os.getenv("VERA_LOCAL_MAX_OUTPUT_TOKENS", "512"))
@@ -161,7 +206,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     if user_message["id"] != existing[-1]["id"]:
         return {"duplicate": True, "user_message": user_message, "assistant_message": None}
 
-    monitoring_text = _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
@@ -182,7 +227,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 "source": source,
                 "route": "local",
                 "model": "vera-monitoring",
-                "capability": "service_monitoring",
+                "capability": "gmail" if _gmail_question(content) else "service_monitoring",
             },
         )
         audit_service.append_event(
@@ -196,7 +241,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 "source": source,
                 "provider": "local",
                 "model": "vera-monitoring",
-                "capability": "service_monitoring",
+                "capability": "gmail" if _gmail_question(content) else "service_monitoring",
             },
         )
         return {"duplicate": False, "user_message": user_message, "assistant_message": assistant}
