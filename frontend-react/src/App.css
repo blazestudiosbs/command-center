@@ -2698,6 +2698,18 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .github-awareness a { color: #a9c7ff; font-size: 0.82rem; text-decoration: none; }
 .github-awareness a:hover { text-decoration: underline; }
 .github-awareness p { margin: 0; color: var(--muted); font-size: 0.82rem; }
+.calendar-events-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.calendar-events-heading h2 { margin: 0; }
+.calendar-events-heading p { margin: 5px 0 0; color: var(--muted); }
+.calendar-events { display: grid; margin-top: 14px; }
+.calendar-events article { display: grid; grid-template-columns: minmax(180px, .5fr) 1fr; gap: 16px; padding: 13px 0; border-top: 1px solid var(--border); }
+.calendar-events time { color: #b8c8dc; font-size: 0.84rem; }
+.calendar-events article > div { display: grid; gap: 4px; }
+.calendar-events small { color: var(--muted); }
+@media (max-width: 650px) {
+  .calendar-events-heading { flex-direction: column; }
+  .calendar-events article { grid-template-columns: 1fr; gap: 5px; }
+}
 
 @media (max-width: 850px) {
   .infrastructure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

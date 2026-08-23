@@ -28,6 +28,18 @@ AGENTS = (
         ),
     },
     {
+        "id": "calendar",
+        "name": "Calendar Agent",
+        "description": "Reads upcoming Google Calendar events for Vera.",
+        "capabilities": (
+            {"id": "read_events", "name": "Read event titles and times", "default": False, "available": True},
+            {"id": "search", "name": "Search upcoming events", "default": False, "available": True},
+            {"id": "create", "name": "Create events", "default": False, "available": False},
+            {"id": "edit", "name": "Edit events", "default": False, "available": False},
+            {"id": "delete", "name": "Delete events", "default": False, "available": False},
+        ),
+    },
+    {
         "id": "service_monitor",
         "name": "Service Monitor",
         "description": "Observes Docker services and records state changes.",

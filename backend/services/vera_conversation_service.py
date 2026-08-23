@@ -1,9 +1,10 @@
 import os
 import re
+from datetime import datetime, timedelta
 
 import requests
 
-from services import agent_permission_service, audit_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
+from services import agent_permission_service, audit_service, calendar_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
 from services import gmail_rule_service, gmail_service
 
 
@@ -175,6 +176,40 @@ def _gmail_rule_answer(
     )
 
 
+def _calendar_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(calendar|schedule|event|events|appointment|appointments)\b", lowered):
+        return None
+    if not re.search(r"\b(today|tomorrow|week|upcoming|next|have|what|anything)\b", lowered):
+        return None
+    if not agent_permission_service.is_allowed(owner_user_id, "calendar", "read_events"):
+        return "The Calendar Agent’s read events permission is off. Enable it in Agent Permissions first."
+    if not calendar_service.get_status(owner_user_id)["connected"]:
+        return "Google Calendar read access is not connected. Open Calendar in Command Center to authorize it."
+    if "tomorrow" in lowered:
+        start, end = calendar_service.day_range("tomorrow")
+        label = "tomorrow"
+    elif "today" in lowered:
+        start, end = calendar_service.day_range("today")
+        label = "today"
+    else:
+        start = datetime.now(calendar_service.LOCAL_TIMEZONE)
+        end = start + timedelta(days=7)
+        label = "in the next seven days"
+    events = calendar_service.list_events(owner_user_id, start=start, end=end, limit=20)
+    if not events:
+        return f"You have no calendar events {label}."
+    lines = []
+    for event in events:
+        if event["all_day"]:
+            when = f"{event['start']} (all day)"
+        else:
+            when = datetime.fromisoformat(event["start"].replace("Z", "+00:00")).astimezone(calendar_service.LOCAL_TIMEZONE).strftime("%a %b %-d at %-I:%M %p")
+        location = f" — {event['location']}" if event.get("location") else ""
+        lines.append(f"- {when}: {event['title']}{location}")
+    return f"You have {len(events)} calendar event{'s' if len(events) != 1 else ''} {label}:\n" + "\n".join(lines)
+
+
 def _local_max_output_tokens() -> int:
     try:
         value = int(os.getenv("VERA_LOCAL_MAX_OUTPUT_TOKENS", "512"))
@@ -229,7 +264,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,

@@ -56,6 +56,11 @@ class GmailServiceTests(unittest.TestCase):
         query = parse_qs(urlparse(authorization_url).query)
         self.assertEqual(query["scope"], [gmail_service.GMAIL_FULL_SCOPE])
 
+    def test_calendar_authorization_preserves_gmail_and_adds_read_only_calendar(self):
+        authorization_url = gmail_service.authorization_url("owner", calendar_read=True)
+        scopes = set(parse_qs(urlparse(authorization_url).query)["scope"][0].split())
+        self.assertEqual(scopes, {gmail_service.GMAIL_MODIFY_SCOPE, gmail_service.CALENDAR_READONLY_SCOPE})
+
     @patch("services.gmail_service.requests.get")
     @patch("services.gmail_service.requests.post")
     def test_callback_encrypts_refresh_token_and_connects(self, post, get):

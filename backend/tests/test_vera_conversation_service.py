@@ -225,6 +225,19 @@ class VeraConversationServiceTests(unittest.TestCase):
         propose.assert_called_once_with("owner", "store-news@amazon.com", source="discord")
         post.assert_not_called()
 
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.calendar_service.list_events")
+    @patch("services.vera_conversation_service.calendar_service.get_status", return_value={"connected": True})
+    def test_calendar_question_uses_local_read_only_agent(self, _status, events, post):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="calendar", capability="read_events", enabled=True)
+        events.return_value = [{"id": "e1", "title": "Dentist", "start": "2026-08-24T10:00:00-04:00", "end": "2026-08-24T11:00:00-04:00", "all_day": False, "location": "Office"}]
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="What is on my calendar tomorrow?", client_message_id="discord:calendar-1", source="discord")
+        self.assertIn("Dentist", result["assistant_message"]["content"])
+        self.assertIn("Office", result["assistant_message"]["content"])
+        post.assert_not_called()
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

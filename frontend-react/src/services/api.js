@@ -213,6 +213,21 @@ export async function getProjectAwareness() {
   return res.data;
 }
 
+export async function getCalendarStatus() {
+  const res = await axios.get("/api/calendar/status");
+  return res.data;
+}
+
+export async function startCalendarOAuth() {
+  const res = await axios.post("/api/calendar/oauth/start", null, { headers: csrfHeaders() });
+  return res.data.authorization_url;
+}
+
+export async function getCalendarEvents(days = 7) {
+  const res = await axios.get(`/api/calendar/events?days=${encodeURIComponent(days)}`);
+  return res.data;
+}
+
 export async function learnGmailSender(sender, category) {
   const res = await axios.post(
     "/api/gmail/learning/sender-rule",
