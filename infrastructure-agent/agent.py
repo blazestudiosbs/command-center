@@ -13,6 +13,10 @@ ROOT = Path(os.getenv("COMMAND_CENTER_ROOT", "/opt/command-center"))
 CONFIG = ROOT / "config"
 DATABASE = CONFIG / "vera.db"
 STATUS_FILE = CONFIG / "infrastructure-agent-status.json"
+EXPECTED_CONTAINERS = {
+    "command-center", "command-center-ui", "vera-discord", "vera-ollama",
+    "development-worker", "minecraft-atm10", "plex", "homeassistant", "code-server",
+}
 
 
 def now():
@@ -49,6 +53,16 @@ def save(section, payload):
     os.replace(temporary, STATUS_FILE)
 
 
+def container_issue(name, state):
+    if state.startswith("Up"):
+        return None
+    if name in EXPECTED_CONTAINERS:
+        return {"severity": "critical", "kind": "container", "detail": f"{name}: {state}"}
+    if state.startswith("Exited (0)"):
+        return None
+    return {"severity": "warning", "kind": "container", "detail": f"Unmanaged container {name}: {state}"}
+
+
 def health():
     if not enabled("health_checks_enabled"):
         save("health", {"status": "disabled", "checked_utc": now(), "issues": []})
@@ -80,8 +94,9 @@ def health():
         for line in docker["output"].splitlines():
             name, _, state = line.partition("|")
             containers.append({"name": name, "status": state})
-            if state and not state.startswith("Up") and name != "hello-world":
-                issues.append({"severity": "critical", "kind": "container", "detail": f"{name}: {state}"})
+            issue = container_issue(name, state)
+            if issue:
+                issues.append(issue)
     else:
         issues.append({"severity": "critical", "kind": "docker", "detail": "Docker status could not be read."})
     journal = command(["journalctl", "-p", "err", "--since", "15 minutes ago", "--no-pager", "-n", "50"], 30)
