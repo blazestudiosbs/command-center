@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from services import agent_permission_service, audit_service, calendar_service, cloud_response_service, conversation_service, openai_service, policy_service, router_service, service_monitoring_service
+from services import agent_permission_service, audit_service, calendar_service, cloud_response_service, conversation_service, openai_service, policy_service, release_service, router_service, service_monitoring_service
 from services import gmail_rule_service, gmail_service
 
 
@@ -323,6 +323,23 @@ def _calendar_answer(owner_user_id: str, content: str) -> str | None:
     return f"You have {len(events)} calendar event{'s' if len(events) != 1 else ''} {label}:\n" + "\n".join(lines)
 
 
+def _release_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(commit|push|deploy|release)\b", lowered) or not re.search(r"\b(changes|work|this|it|release)\b", lowered):
+        return None
+    if not ("commit" in lowered and "push" in lowered):
+        return None
+    if not agent_permission_service.is_allowed(owner_user_id, "development_worker", "prepare_releases"):
+        return "The Development Worker’s Prepare releases permission is off. Enable it in Agent Permissions first."
+    deploy = "deploy" in lowered
+    try:
+        release = release_service.prepare(owner_user_id, commit_message="Vera approved changes", deploy_requested=deploy)
+    except (ValueError, RuntimeError) as exc:
+        return f"I did not prepare a release: {exc}"
+    action = "commit and push, then deploy" if deploy else "commit and push"
+    return f"I prepared {len(release['files'])} changed file{'s' if len(release['files']) != 1 else ''} on {release['branch']} to {action}. Nothing has executed. Review the exact files and approve the release on the Releases page within 30 minutes."
+
+
 def _local_max_output_tokens() -> int:
     try:
         value = int(os.getenv("VERA_LOCAL_MAX_OUTPUT_TOKENS", "512"))
@@ -377,7 +394,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_pending_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_pending_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _release_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,

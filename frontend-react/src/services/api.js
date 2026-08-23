@@ -213,6 +213,21 @@ export async function getProjectAwareness() {
   return res.data;
 }
 
+export async function getReleaseStatus() {
+  const res = await axios.get("/api/releases/status");
+  return res.data;
+}
+
+export async function prepareRelease(commitMessage, deploy = true) {
+  const res = await axios.post("/api/releases/prepare", { commit_message: commitMessage, deploy }, { headers: csrfHeaders() });
+  return res.data.release;
+}
+
+export async function executeRelease(releaseId) {
+  const res = await axios.post("/api/releases/execute", { release_id: releaseId }, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getCalendarStatus() {
   const res = await axios.get("/api/calendar/status");
   return res.data;

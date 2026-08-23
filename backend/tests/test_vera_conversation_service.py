@@ -301,6 +301,17 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertIn("no matching pending Calendar changes", result["assistant_message"]["content"])
         pending.assert_called_once_with("owner")
 
+    @patch("services.vera_conversation_service.release_service.prepare")
+    def test_release_request_prepares_but_does_not_execute(self, prepare):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="development_worker", capability="prepare_releases", enabled=True)
+        prepare.return_value = {"id": "release-1", "files": ["backend/app.py"], "branch": "codex/test"}
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Commit and push these changes and deploy it", client_message_id="discord:release-1", source="discord")
+        self.assertIn("Nothing has executed", result["assistant_message"]["content"])
+        self.assertIn("Releases page", result["assistant_message"]["content"])
+        prepare.assert_called_once_with("owner", commit_message="Vera approved changes", deploy_requested=True)
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

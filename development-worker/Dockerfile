@@ -13,6 +13,7 @@ RUN apk add --no-cache \
 WORKDIR /workspace/command-center
 
 COPY development-worker/start-worker.sh /usr/local/bin/start-worker.sh
-RUN chmod +x /usr/local/bin/start-worker.sh
+COPY development-worker/github-askpass.sh /usr/local/bin/github-askpass.sh
+RUN chmod +x /usr/local/bin/start-worker.sh /usr/local/bin/github-askpass.sh
 
 CMD ["/usr/local/bin/start-worker.sh"]

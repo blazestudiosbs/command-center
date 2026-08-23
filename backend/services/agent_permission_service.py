@@ -56,6 +56,8 @@ AGENTS = (
         "description": "Runs explicitly approved development tasks.",
         "capabilities": (
             {"id": "manual_tasks", "name": "Run manual tasks", "default": True, "available": True},
+            {"id": "prepare_releases", "name": "Prepare commit, push, and deploy releases", "default": False, "available": True},
+            {"id": "execute_approved_releases", "name": "Execute owner-approved releases", "default": False, "available": True},
             {"id": "autonomous_tasks", "name": "Run autonomous tasks", "default": False, "available": False},
         ),
     },

@@ -70,6 +70,7 @@ services:
       - /opt/command-center:/workspace/command-center
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/workspace/command-center/config
+      - ./secrets:/run/secrets:ro
     restart: unless-stopped
 
 volumes:

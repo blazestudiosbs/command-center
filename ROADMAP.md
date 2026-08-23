@@ -16,7 +16,7 @@
 - Read-only Google Calendar integration and Vera queries
 
 ## Next
-- Optional GitHub token connection and deployment verification
+- Approval-gated commit, push, and Command Center deployment — complete
 - Multi-Server Support
 - Calendar event creation, editing, and deletion with confirmation controls — complete
 - Expanded Home Assistant integration

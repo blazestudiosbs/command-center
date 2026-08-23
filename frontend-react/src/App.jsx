@@ -18,6 +18,7 @@ import MonitoringPage from "./pages/Monitoring";
 import GmailPage from "./pages/Gmail";
 import AgentsPage from "./pages/Agents";
 import CalendarPage from "./pages/Calendar";
+import ReleasesPage from "./pages/Releases";
 import { getCurrentUser, logout } from "./services/api";
 import VeraControl from "./components/VeraControl";
 
@@ -34,6 +35,7 @@ const navItems = [
   { id: "agents", label: "Agent Permissions", group: "Operations" },
   { id: "security", label: "Security", group: "Operations" },
   { id: "development", label: "Development", group: "Operations" },
+  { id: "releases", label: "Releases", group: "Operations" },
   { id: "projects", label: "Projects", group: "Workspace" },
   { id: "infrastructure", label: "Infrastructure", group: "Workspace" },
   { id: "automation", label: "Automation", group: "Workspace" },
@@ -55,6 +57,7 @@ const pageMap = {
   plex: PlexPage,
   security: SecurityPage,
   development: DevelopmentPage,
+  releases: ReleasesPage,
   automation: AutomationPage,
   settings: SettingsPage,
 };
