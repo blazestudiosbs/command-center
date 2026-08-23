@@ -2717,6 +2717,11 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .calendar-change-form .calendar-check { display: flex; flex-direction: row; align-items: center; align-self: end; }
 .calendar-confirm-panel > p { color: var(--muted); }
 .calendar-confirm-actions { display: flex; gap: 10px; margin-top: 16px; }
+.calendar-pending-panel { margin-top: 16px; }
+.calendar-pending-list { display: grid; gap: 9px; margin-top: 14px; }
+.calendar-pending-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: rgb(8 17 30 / 55%); }
+.calendar-pending-list article > div { display: grid; gap: 4px; }
+.calendar-pending-list small { color: var(--muted); }
 @media (max-width: 650px) {
   .calendar-events-heading { flex-direction: column; }
   .calendar-events article { grid-template-columns: 1fr; gap: 5px; }

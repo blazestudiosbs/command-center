@@ -22,6 +22,7 @@ export default function CalendarPage() {
   const [form, setForm] = useState(emptyForm);
   const [selectedId, setSelectedId] = useState("");
   const [pending, setPending] = useState(null);
+  const [pendingChanges, setPendingChanges] = useState([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,7 +34,7 @@ export default function CalendarPage() {
   useEffect(() => { loadStatus(); }, []);
   useEffect(() => {
     if (!status?.write_authorized) return;
-    getPendingCalendarChanges().then((changes) => { if (changes.length) setPending(changes[0]); }).catch(() => {});
+    getPendingCalendarChanges().then((changes) => setPendingChanges(changes)).catch(() => {});
   }, [status?.write_authorized]);
 
   async function connect(write = false) {
@@ -61,7 +62,7 @@ export default function CalendarPage() {
 
   async function prepareDelete(event) {
     setBusy(true); setPending(null); setNotice("");
-    try { setPending(await prepareCalendarChange({ action: "delete", event_id: event.id })); setError(""); }
+    try { const change = await prepareCalendarChange({ action: "delete", event_id: event.id }); setPending(change); setPendingChanges((changes) => [change, ...changes.filter((item) => item.id !== change.id)]); setError(""); }
     catch (err) { setError(err.response?.data?.detail || err.message || "Calendar deletion could not be prepared"); }
     finally { setBusy(false); }
   }
@@ -70,7 +71,7 @@ export default function CalendarPage() {
     event.preventDefault(); setBusy(true); setPending(null); setNotice("");
     try {
       const change = await prepareCalendarChange({ action: selectedId ? "edit" : "create", event_id: selectedId || null, ...form });
-      setPending(change); setError("");
+      setPending(change); setPendingChanges((changes) => [change, ...changes.filter((item) => item.id !== change.id)]); setError("");
     } catch (err) { setError(err.response?.data?.detail || err.message || "Calendar preview could not be prepared"); }
     finally { setBusy(false); }
   }
@@ -79,6 +80,7 @@ export default function CalendarPage() {
     setBusy(true);
     try {
       const result = await confirmCalendarChange(pending.id);
+      setPendingChanges((changes) => changes.filter((change) => change.id !== pending.id));
       setPending(null); setNotice(result.action === "delete" ? "Event deleted from Google Calendar." : result.action === "edit" ? "Event updated in Google Calendar." : "Event created in Google Calendar.");
       await loadEvents();
     } catch (err) { setError(err.response?.data?.detail || err.message || "Calendar change was not completed"); setBusy(false); }
@@ -112,6 +114,7 @@ export default function CalendarPage() {
         </form>
         <p className="answer">The matching Calendar Agent {selectedId ? "edit" : "create"} permission must also be enabled. Vera will not email guests about these changes.</p>
       </section>}
+      {status?.write_authorized && <section className="panel calendar-pending-panel"><div className="calendar-events-heading"><div><h2>Pending confirmations</h2><p>Only changes recorded in Vera’s ledger appear here.</p></div><button type="button" className="secondary-button" onClick={() => getPendingCalendarChanges().then(setPendingChanges)}>Refresh pending</button></div>{pendingChanges.length === 0 ? <p className="answer">No Calendar changes are waiting for confirmation.</p> : <div className="calendar-pending-list">{pendingChanges.map((change) => { const event = change.before || change.after || {}; return <article key={change.id}><div><strong>{change.action.toUpperCase()} · {event.title || "Untitled event"}</strong><small>Expires {new Date(change.expires_utc).toLocaleString()}</small></div><button type="button" className={`secondary-button ${change.action === "delete" ? "danger-button" : ""}`} onClick={() => setPending(change)}>Review</button></article>; })}</div>}</section>}
       {pending && <section className="panel calendar-confirm-panel"><h2>Confirm this {pending.action}</h2>{pending.before && <p><strong>{pending.action === "delete" ? "Will be deleted" : "Current"}:</strong> {pending.before.title} · {displayTime(pending.before)}</p>}{pending.after && <p><strong>New:</strong> {pending.after.title} · {pending.after.start} to {pending.after.end}{pending.after.location ? ` · ${pending.after.location}` : ""}</p>}{pending.action === "delete" && <p className="journal-error">This removes the real event from Google Calendar. Vera will not delete it unless you confirm below.</p>}<p>This confirmation expires in 15 minutes.</p><div className="calendar-confirm-actions"><button type="button" className={`primary-button ${pending.action === "delete" ? "danger-button" : ""}`} disabled={busy} onClick={confirm}>{busy ? "Saving…" : `Confirm ${pending.action}`}</button><button type="button" className="secondary-button" disabled={busy} onClick={() => setPending(null)}>Cancel</button></div></section>}
     </div>
   );

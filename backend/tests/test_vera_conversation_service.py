@@ -294,6 +294,13 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertIn("pending—not deleted", result["assistant_message"]["content"])
         prepare.assert_called_once_with("owner", action="delete", event_id="event-1")
 
+    @patch("services.vera_conversation_service.calendar_service.pending_changes", return_value=[])
+    def test_pending_calendar_question_uses_ledger_and_cannot_invent_deletions(self, pending):
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="What calendar deletions are pending?", client_message_id="discord:calendar-pending-empty", source="discord")
+        self.assertIn("no matching pending Calendar changes", result["assistant_message"]["content"])
+        pending.assert_called_once_with("owner")
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

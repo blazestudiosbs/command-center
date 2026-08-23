@@ -273,6 +273,22 @@ def _calendar_delete_answer(owner_user_id: str, content: str) -> str | None:
     return f"I prepared a deletion for “{event['title']}” {day}. It is pending—not deleted. Review and explicitly confirm it on the Calendar page within 15 minutes."
 
 
+def _calendar_pending_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(pending|prepared|waiting)\b", lowered) or not re.search(r"\b(calendar|calander|event|events|deletion|deletions|delete)\b", lowered):
+        return None
+    changes = calendar_service.pending_changes(owner_user_id)
+    if "delet" in lowered:
+        changes = [change for change in changes if change["action"] == "delete"]
+    if not changes:
+        return "There are no matching pending Calendar changes in Vera’s ledger. Nothing is waiting for confirmation."
+    lines = []
+    for change in changes:
+        event = change.get("before") or change.get("after") or {}
+        lines.append(f"- {change['action'].title()}: {event.get('title') or 'Untitled event'} (expires {change['expires_utc']})")
+    return f"Vera’s ledger has {len(changes)} matching pending Calendar change{'s' if len(changes) != 1 else ''}:\n" + "\n".join(lines) + "\nReview them on the Calendar page."
+
+
 def _calendar_answer(owner_user_id: str, content: str) -> str | None:
     lowered = content.lower()
     if not re.search(r"\b(calendar|schedule|event|events|appointment|appointments)\b", lowered):
@@ -361,7 +377,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_pending_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
