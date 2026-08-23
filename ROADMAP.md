@@ -15,7 +15,7 @@
 - Local Project and GitHub repository awareness
 
 ## Next
-- Optional authenticated GitHub issues and pull-request awareness
+- Optional GitHub token connection and deployment verification
 - Multi-Server Support
 - Expanded Home Assistant integration
 - Voice Interface

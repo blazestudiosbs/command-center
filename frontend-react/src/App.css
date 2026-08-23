@@ -2691,6 +2691,13 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .project-latest-commit small { color: var(--muted); font-size: 0.75rem; }
 .project-github-link { width: fit-content; min-height: 34px; margin-top: 14px; padding: 7px 11px; font-size: 0.8rem; }
 .project-tracking-note { display: block; margin-top: 10px; font-size: 0.72rem; }
+.github-awareness { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.github-awareness > div { display: flex; gap: 20px; }
+.github-awareness span { display: grid; gap: 3px; }
+.github-awareness small { color: var(--muted); font-size: 0.68rem; font-weight: 750; text-transform: uppercase; }
+.github-awareness a { color: #a9c7ff; font-size: 0.82rem; text-decoration: none; }
+.github-awareness a:hover { text-decoration: underline; }
+.github-awareness p { margin: 0; color: var(--muted); font-size: 0.82rem; }
 
 @media (max-width: 850px) {
   .infrastructure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

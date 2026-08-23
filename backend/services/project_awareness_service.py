@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import docker
+import requests
 
 from storage import database_path
 
@@ -37,6 +38,40 @@ def _github_repository(remote):
     return match.group(1) if match else None
 
 
+def _github_token():
+    direct = os.getenv("GITHUB_TOKEN", "").strip()
+    if direct:
+        return direct
+    try:
+        return Path(os.getenv("GITHUB_TOKEN_FILE", "/run/secrets/github_token")).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _github_summary(repository, token):
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2026-03-10",
+        "User-Agent": "Vera-Command-Center",
+    }
+    try:
+        issues_response = requests.get(f"https://api.github.com/repos/{repository}/issues", headers=headers, params={"state": "open", "per_page": 20}, timeout=12)
+        pulls_response = requests.get(f"https://api.github.com/repos/{repository}/pulls", headers=headers, params={"state": "open", "per_page": 20}, timeout=12)
+        issues_response.raise_for_status()
+        pulls_response.raise_for_status()
+        issues = [item for item in issues_response.json() if "pull_request" not in item]
+        pulls = pulls_response.json()
+        return {
+            "status": "connected", "open_issue_count": len(issues), "open_pull_request_count": len(pulls),
+            "issues": [{"number": item["number"], "title": item["title"], "url": item["html_url"], "updated_utc": item["updated_at"]} for item in issues[:5]],
+            "pull_requests": [{"number": item["number"], "title": item["title"], "url": item["html_url"], "draft": bool(item.get("draft")), "updated_utc": item["updated_at"]} for item in pulls[:5]],
+            "permission": "read_only", "content_bodies_loaded": False,
+        }
+    except requests.RequestException as exc:
+        return {"status": "unavailable", "detail": f"GitHub API request failed safely ({type(exc).__name__}).", "issues": [], "pull_requests": []}
+
+
 def _repository_status(container, path):
     branch = _git(container, path, "branch", "--show-current")
     status = _git(container, path, "status", "--porcelain")
@@ -66,6 +101,7 @@ def _repository_status(container, path):
 
 def get_overview():
     projects = _projects()
+    github_token = _github_token()
     client = None
     worker = None
     try:
@@ -81,12 +117,13 @@ def get_overview():
         for project in projects:
             path = _worker_path(project.get("path", ""))
             repository = _repository_status(worker, path) if worker and path else None
-            result.append({**project, "linked": bool(path), "repository": repository})
+            github = _github_summary(repository["github_repository"], github_token) if github_token and repository and repository.get("github_repository") else None
+            result.append({**project, "linked": bool(path), "repository": repository, "github": github})
     finally:
         if client:
             client.close()
     return {
-        "mode": "read_only", "network_calls_made": False,
-        "github_token_configured": bool(os.getenv("GITHUB_TOKEN", "").strip()),
+        "mode": "read_only", "network_calls_made": bool(github_token),
+        "github_token_configured": bool(github_token),
         "projects": result,
     }

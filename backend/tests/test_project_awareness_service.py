@@ -12,7 +12,7 @@ class ProjectAwarenessServiceTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.database = Path(self.temporary.name) / "vera.db"
-        self.environment = patch.dict(os.environ, {"VERA_DATABASE_PATH": str(self.database)}, clear=False)
+        self.environment = patch.dict(os.environ, {"VERA_DATABASE_PATH": str(self.database), "GITHUB_TOKEN": "", "GITHUB_TOKEN_FILE": str(self.database.parent / "missing-token")}, clear=False)
         self.environment.start()
         (self.database.parent / "projects.json").write_text(json.dumps({"projects": [
             {"name": "Command Center", "path": "/opt/command-center", "type": "infrastructure", "priority": "high", "status": "active"},
@@ -54,6 +54,24 @@ class ProjectAwarenessServiceTests(unittest.TestCase):
     def test_github_remote_parser_accepts_https_and_ssh(self):
         self.assertEqual(project_awareness_service._github_repository("git@github.com:owner/repo.git"), "owner/repo")
         self.assertEqual(project_awareness_service._github_repository("https://github.com/owner/repo.git"), "owner/repo")
+
+    @patch("services.project_awareness_service.requests.get")
+    def test_github_summary_loads_titles_without_bodies_or_write_calls(self, get):
+        issues = Mock()
+        issues.json.return_value = [{"number": 4, "title": "Fix it", "html_url": "https://github.com/o/r/issues/4", "updated_at": "now"}]
+        issues.raise_for_status.return_value = None
+        pulls = Mock()
+        pulls.json.return_value = [{"number": 5, "title": "Improve it", "html_url": "https://github.com/o/r/pull/5", "updated_at": "now", "draft": False}]
+        pulls.raise_for_status.return_value = None
+        get.side_effect = [issues, pulls]
+
+        summary = project_awareness_service._github_summary("o/r", "secret-token")
+
+        self.assertEqual(summary["open_issue_count"], 1)
+        self.assertEqual(summary["open_pull_request_count"], 1)
+        self.assertFalse(summary["content_bodies_loaded"])
+        self.assertNotIn("secret-token", str(summary))
+        self.assertEqual(get.call_count, 2)
 
 
 if __name__ == "__main__":
