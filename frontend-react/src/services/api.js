@@ -198,6 +198,16 @@ export async function updateInfrastructureSettings(securityUpdatesEnabled, healt
   return res.data;
 }
 
+export async function getBackupStatus() {
+  const res = await axios.get("/api/backups/status");
+  return res.data;
+}
+
+export async function setBackupEnabled(enabled) {
+  const res = await axios.put("/api/backups/settings", { enabled }, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function learnGmailSender(sender, category) {
   const res = await axios.post(
     "/api/gmail/learning/sender-rule",

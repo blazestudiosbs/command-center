@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from routers.auth import router as auth_router
+from routers.backups import router as backups_router
 from routers.agents import router as agents_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
@@ -23,7 +24,7 @@ from routers.home_assistant import router as home_assistant_router
 from routers.infrastructure import router as infrastructure_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
-from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, infrastructure_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
+from services import advisor_service, agent_permission_service, auth_service, backup_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, infrastructure_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -66,6 +67,15 @@ async def infrastructure_alert_loop():
         await asyncio.sleep(300)
 
 
+async def backup_alert_loop():
+    while True:
+        try:
+            await asyncio.to_thread(backup_service.alert_on_change)
+        except Exception as exc:
+            print(f"Backup alert check failed safely: {type(exc).__name__}")
+        await asyncio.sleep(300)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     initialize_storage()
@@ -74,6 +84,7 @@ async def lifespan(_app: FastAPI):
     gmail_task = asyncio.create_task(gmail_organizer_loop())
     gmail_learning_task = asyncio.create_task(gmail_cloud_learning_loop())
     infrastructure_task = asyncio.create_task(infrastructure_alert_loop())
+    backup_task = asyncio.create_task(backup_alert_loop())
     try:
         yield
     finally:
@@ -81,6 +92,7 @@ async def lifespan(_app: FastAPI):
         gmail_task.cancel()
         gmail_learning_task.cancel()
         infrastructure_task.cancel()
+        backup_task.cancel()
         with suppress(asyncio.CancelledError):
             await monitor_task
         with suppress(asyncio.CancelledError):
@@ -89,10 +101,13 @@ async def lifespan(_app: FastAPI):
             await gmail_learning_task
         with suppress(asyncio.CancelledError):
             await infrastructure_task
+        with suppress(asyncio.CancelledError):
+            await backup_task
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(backups_router)
 app.include_router(agents_router)
 app.include_router(control_router)
 app.include_router(home_assistant_router)

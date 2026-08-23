@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
-import { getInfrastructureStatus, updateInfrastructureSettings } from "../../services/api";
+import { getBackupStatus, getInfrastructureStatus, setBackupEnabled, updateInfrastructureSettings } from "../../services/api";
 
 
 export default function InfrastructurePage() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [backup, setBackup] = useState(null);
 
   async function load() {
-    try { setStatus(await getInfrastructureStatus()); setError(""); }
+    try {
+      const [infrastructure, backupStatus] = await Promise.all([getInfrastructureStatus(), getBackupStatus()]);
+      setStatus(infrastructure); setBackup(backupStatus); setError("");
+    }
     catch (err) { setError(err.response?.data?.detail || err.message || "Infrastructure agents unavailable"); }
   }
 
@@ -22,6 +26,16 @@ export default function InfrastructurePage() {
         field === "health" ? enabled : status.settings.health_checks_enabled,
       );
       setStatus((current) => ({ ...current, settings }));
+      setError("");
+    } catch (err) { setError(err.response?.data?.detail || err.message); }
+    finally { setBusy(false); }
+  }
+
+  async function changeBackup(enabled) {
+    setBusy(true);
+    try {
+      const settings = await setBackupEnabled(enabled);
+      setBackup((current) => ({ ...current, settings }));
       setError("");
     } catch (err) { setError(err.response?.data?.detail || err.message); }
     finally { setBusy(false); }
@@ -61,6 +75,18 @@ export default function InfrastructurePage() {
                 <label className="agent-switch"><input type="checkbox" disabled={busy} checked={status.settings.health_checks_enabled} onChange={(event) => change("health", event.target.checked)} />{status.settings.health_checks_enabled ? "On" : "Off"}</label>
               </div>
               <div className="infrastructure-facts"><span><small>Last check</small><strong>{health.checked_utc || "Never"}</strong></span><span><small>Recent errors</small><strong>{health.recent_error_count ?? "—"}</strong></span><span><small>Repairs</small><strong>Observation only</strong></span></div>
+            </article>
+            <article className="agent-permission-card">
+              <div className="agent-permission-heading">
+                <div><h2>Backup & Recovery Agent</h2><p>Creates verified daily backups at 2:30 AM Detroit time. Restore is always manual.</p></div>
+                <label className="agent-switch"><input type="checkbox" disabled={busy} checked={backup?.settings.enabled ?? false} onChange={(event) => changeBackup(event.target.checked)} />{backup?.settings.enabled ? "On" : "Off"}</label>
+              </div>
+              <div className="infrastructure-facts">
+                <span><small>Last backup</small><strong>{backup?.last_backup.completed_utc || "Never"}</strong></span>
+                <span><small>Verification</small><strong>{backup?.last_backup.verified ? "Passed" : backup?.last_backup.status || "Not installed"}</strong></span>
+                <span><small>Retention</small><strong>{backup?.settings.daily_retention ?? 14} daily · {backup?.settings.weekly_retention ?? 8} weekly</strong></span>
+              </div>
+              <p className="backup-safety-note">Secrets are excluded. Database tokens remain encrypted. Automatic restore is blocked.</p>
             </article>
           </section>
           <section className="panel">

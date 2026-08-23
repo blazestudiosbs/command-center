@@ -2672,6 +2672,7 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .infrastructure-issues article { padding: 11px 13px; border-left: 3px solid var(--warning); border-radius: 8px; background: rgb(9 17 31 / 60%); }
 .infrastructure-issues article.critical { border-left-color: var(--danger); }
 .infrastructure-issues p { margin: 4px 0 0; color: var(--muted); }
+.backup-safety-note { margin: 14px 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
 
 @media (max-width: 850px) {
   .infrastructure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

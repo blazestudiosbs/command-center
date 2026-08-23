@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Vera backup daily at 02:30 Detroit time
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 America/Detroit
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Vera Command Center Backup Agent
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/command-center/backup-agent/agent.py run
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
