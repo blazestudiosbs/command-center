@@ -81,6 +81,25 @@ class CalendarServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calendar_service.confirm_change("owner", change["id"])
 
+    @patch("services.calendar_service.requests.delete")
+    @patch("services.calendar_service.requests.get")
+    @patch("services.calendar_service.get_status", return_value={"write_authorized": True})
+    def test_delete_requires_pending_confirmation_and_uses_etag(self, _status, get, delete_request):
+        current = Mock(); current.raise_for_status.return_value = None
+        current.json.return_value = {"id": "event-1", "etag": "v2", "summary": "Test Event", "start": {"dateTime": "2026-08-24T10:00:00-04:00"}, "end": {"dateTime": "2026-08-24T11:00:00-04:00"}, "status": "confirmed"}
+        get.return_value = current
+        deleted = Mock(); deleted.raise_for_status.return_value = None
+        delete_request.return_value = deleted
+        with patch("services.calendar_service.gmail_service._access_token", return_value="token"):
+            change = calendar_service.prepare_change("owner", action="delete", event_id="event-1")
+            self.assertEqual(change["status"], "pending")
+            self.assertIsNone(change["after"])
+            result = calendar_service.confirm_change("owner", change["id"])
+        self.assertEqual(result["event"]["status"], "deleted")
+        self.assertEqual(delete_request.call_args.kwargs["headers"]["If-Match"], "v2")
+        with self.assertRaises(ValueError):
+            calendar_service.confirm_change("owner", change["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

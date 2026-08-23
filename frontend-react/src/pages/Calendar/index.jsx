@@ -59,6 +59,13 @@ export default function CalendarPage() {
     setSelectedId(""); setForm(emptyForm); setPending(null); setNotice("");
   }
 
+  async function prepareDelete(event) {
+    setBusy(true); setPending(null); setNotice("");
+    try { setPending(await prepareCalendarChange({ action: "delete", event_id: event.id })); setError(""); }
+    catch (err) { setError(err.response?.data?.detail || err.message || "Calendar deletion could not be prepared"); }
+    finally { setBusy(false); }
+  }
+
   async function prepare(event) {
     event.preventDefault(); setBusy(true); setPending(null); setNotice("");
     try {
@@ -72,7 +79,7 @@ export default function CalendarPage() {
     setBusy(true);
     try {
       const result = await confirmCalendarChange(pending.id);
-      setPending(null); setNotice(result.action === "edit" ? "Event updated in Google Calendar." : "Event created in Google Calendar.");
+      setPending(null); setNotice(result.action === "delete" ? "Event deleted from Google Calendar." : result.action === "edit" ? "Event updated in Google Calendar." : "Event created in Google Calendar.");
       await loadEvents();
     } catch (err) { setError(err.response?.data?.detail || err.message || "Calendar change was not completed"); setBusy(false); }
   }
@@ -84,13 +91,13 @@ export default function CalendarPage() {
       <section className="gmail-connection">
         <div className="gmail-connection-heading"><div><small>Connection</small><h2>{status?.connected ? "Connected" : "Not connected"}</h2></div><span className={`monitoring-state ${status?.connected ? "running" : "pending"}`}>{status?.write_authorized ? "Create + edit" : "Read only"}</span></div>
         <p>{status?.detail || "Checking Google Calendar…"}</p>{status?.account && <p><strong>Account:</strong> {status.account}</p>}
-        <div className="gmail-safety-grid"><span><small>Read events</small><strong>{status?.authorized ? "Authorized" : "Not authorized"}</strong></span><span><small>Create</small><strong>{status?.can_create ? "Confirmation required" : "Blocked"}</strong></span><span><small>Edit</small><strong>{status?.can_edit ? "Confirmation required" : "Blocked"}</strong></span><span><small>Delete</small><strong>Blocked</strong></span></div>
+        <div className="gmail-safety-grid"><span><small>Read events</small><strong>{status?.authorized ? "Authorized" : "Not authorized"}</strong></span><span><small>Create</small><strong>{status?.can_create ? "Confirmation required" : "Blocked"}</strong></span><span><small>Edit</small><strong>{status?.can_edit ? "Confirmation required" : "Blocked"}</strong></span><span><small>Delete</small><strong>{status?.can_delete ? "Confirmation required" : "Blocked"}</strong></span></div>
         {!status?.connected && <button type="button" className="secondary-button" disabled={busy || !status?.configured} onClick={() => connect(false)}>Authorize Calendar read access</button>}
         {status?.connected && !status?.write_authorized && <button type="button" className="secondary-button" disabled={busy} onClick={() => connect(true)}>Authorize creation and editing</button>}
       </section>
       {status?.connected && <section className="panel">
         <div className="calendar-events-heading"><div><h2>Next 31 days</h2><p>Select an existing event to edit it.</p></div><button type="button" className="secondary-button" disabled={busy} onClick={loadEvents}>{busy ? "Loading…" : "Load events"}</button></div>
-        <div className="calendar-events">{events.map((event) => <article key={event.id} className={selectedId === event.id ? "selected" : ""}><time>{displayTime(event)}</time><div><strong>{event.title}</strong>{event.location && <small>{event.location}</small>}</div>{status?.write_authorized && <button type="button" className="secondary-button" onClick={() => chooseEvent(event)}>Edit</button>}</article>)}</div>
+        <div className="calendar-events">{events.map((event) => <article key={event.id} className={selectedId === event.id ? "selected" : ""}><time>{displayTime(event)}</time><div><strong>{event.title}</strong>{event.location && <small>{event.location}</small>}</div>{status?.write_authorized && <div className="calendar-event-actions"><button type="button" className="secondary-button" onClick={() => chooseEvent(event)}>Edit</button><button type="button" className="secondary-button danger-button" onClick={() => prepareDelete(event)}>Delete</button></div>}</article>)}</div>
         {events.length === 0 && <p className="answer">Enable Calendar Agent → Read event titles and times, then load events.</p>}
       </section>}
       {status?.write_authorized && <section className="panel calendar-change-panel">
@@ -103,9 +110,9 @@ export default function CalendarPage() {
           <label>Location<input value={form.location} maxLength="500" onChange={(e) => setForm({ ...form, location: e.target.value })} /></label>
           <button className="primary-button" disabled={busy} type="submit">Review {selectedId ? "edit" : "new event"}</button>
         </form>
-        <p className="answer">The matching Calendar Agent {selectedId ? "edit" : "create"} permission must also be enabled. Event deletion remains unavailable, and Vera will not email guests about these changes.</p>
+        <p className="answer">The matching Calendar Agent {selectedId ? "edit" : "create"} permission must also be enabled. Vera will not email guests about these changes.</p>
       </section>}
-      {pending && <section className="panel calendar-confirm-panel"><h2>Confirm this {pending.action}</h2>{pending.before && <p><strong>Current:</strong> {pending.before.title} · {displayTime(pending.before)}</p>}<p><strong>New:</strong> {pending.after.title} · {pending.after.start} to {pending.after.end}{pending.after.location ? ` · ${pending.after.location}` : ""}</p><p>This confirmation expires in 15 minutes.</p><div className="calendar-confirm-actions"><button type="button" className="primary-button" disabled={busy} onClick={confirm}>{busy ? "Saving…" : `Confirm ${pending.action}`}</button><button type="button" className="secondary-button" disabled={busy} onClick={() => setPending(null)}>Cancel</button></div></section>}
+      {pending && <section className="panel calendar-confirm-panel"><h2>Confirm this {pending.action}</h2>{pending.before && <p><strong>{pending.action === "delete" ? "Will be deleted" : "Current"}:</strong> {pending.before.title} · {displayTime(pending.before)}</p>}{pending.after && <p><strong>New:</strong> {pending.after.title} · {pending.after.start} to {pending.after.end}{pending.after.location ? ` · ${pending.after.location}` : ""}</p>}{pending.action === "delete" && <p className="journal-error">This removes the real event from Google Calendar. Vera will not delete it unless you confirm below.</p>}<p>This confirmation expires in 15 minutes.</p><div className="calendar-confirm-actions"><button type="button" className={`primary-button ${pending.action === "delete" ? "danger-button" : ""}`} disabled={busy} onClick={confirm}>{busy ? "Saving…" : `Confirm ${pending.action}`}</button><button type="button" className="secondary-button" disabled={busy} onClick={() => setPending(null)}>Cancel</button></div></section>}
     </div>
   );
 }

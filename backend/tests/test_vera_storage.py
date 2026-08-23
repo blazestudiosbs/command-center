@@ -65,6 +65,7 @@ class VeraStorageTests(unittest.TestCase):
                 (17, "infrastructure_agents"),
                 (18, "backup_agent"),
                 (19, "calendar_changes"),
+                (20, "calendar_delete_changes"),
             ],
         )
         self.assertTrue(

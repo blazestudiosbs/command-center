@@ -10,11 +10,11 @@ router = APIRouter(prefix="/api/calendar", tags=["calendar"])
 
 
 class CalendarChangeRequest(BaseModel):
-    action: str = Field(pattern="^(create|edit)$")
+    action: str = Field(pattern="^(create|edit|delete)$")
     event_id: str | None = Field(default=None, max_length=1024)
-    title: str = Field(min_length=1, max_length=300)
-    start: str = Field(min_length=8, max_length=50)
-    end: str = Field(min_length=8, max_length=50)
+    title: str | None = Field(default=None, max_length=300)
+    start: str | None = Field(default=None, max_length=50)
+    end: str | None = Field(default=None, max_length=50)
     location: str | None = Field(default=None, max_length=500)
     all_day: bool = False
 

@@ -2707,6 +2707,8 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .calendar-events time { color: #b8c8dc; font-size: 0.84rem; }
 .calendar-events article > div { display: grid; gap: 4px; }
 .calendar-events small { color: var(--muted); }
+.calendar-event-actions { display: flex !important; grid-auto-flow: column; gap: 8px !important; }
+.danger-button { border-color: rgb(239 92 92 / 55%) !important; color: #ffb5b5 !important; }
 .calendar-change-panel, .calendar-confirm-panel { margin-top: 16px; }
 .calendar-change-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .calendar-change-form label { display: grid; gap: 7px; color: var(--muted); font-size: .78rem; font-weight: 700; }

@@ -248,6 +248,31 @@ def _calendar_edit_answer(owner_user_id: str, content: str) -> str | None:
     return f"I prepared a change to move “{event['title']}” to {new_start.strftime('%-I:%M %p')} {day_match.group(1)}. It is pending—not active. Review and confirm it on the Calendar page within 15 minutes."
 
 
+def _calendar_delete_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(delete|remove|cancel)\b", lowered) or not re.search(r"\b(today|tomorrow)\b", lowered):
+        return None
+    if not agent_permission_service.is_allowed(owner_user_id, "calendar", "delete"):
+        return "The Calendar Agent’s delete permission is off. Enable Delete confirmed events in Agent Permissions first."
+    if not calendar_service.get_status(owner_user_id).get("write_authorized"):
+        return "Calendar deletion is not authorized with Google. Open Calendar in Command Center and authorize creation and editing first."
+    title_match = re.search(r"\b(?:delete|remove|cancel)\s+(?:the\s+)?(?:calendar\s+)?(?:event\s+)?(.+?)\s+(today|tomorrow)\b", content, flags=re.IGNORECASE)
+    if not title_match:
+        return "Tell me the event title and day—for example, “Delete Test Event tomorrow.”"
+    requested_title, day = title_match.group(1).strip(" ,.-"), title_match.group(2).lower()
+    start, end = calendar_service.day_range(day)
+    events = calendar_service.list_events(owner_user_id, start=start, end=end, limit=50)
+    matches = [event for event in events if requested_title.casefold() in event["title"].casefold()]
+    if not matches:
+        return f"I found no event matching “{requested_title}” {day}. Nothing was deleted."
+    if len(matches) > 1:
+        choices = "\n".join(f"- {event['title']} at {event['start']}" for event in matches[:5])
+        return f"I found multiple matching events. Nothing was deleted. Choose one on the Calendar page:\n{choices}"
+    event = matches[0]
+    calendar_service.prepare_change(owner_user_id, action="delete", event_id=event["id"])
+    return f"I prepared a deletion for “{event['title']}” {day}. It is pending—not deleted. Review and explicitly confirm it on the Calendar page within 15 minutes."
+
+
 def _calendar_answer(owner_user_id: str, content: str) -> str | None:
     lowered = content.lower()
     if not re.search(r"\b(calendar|schedule|event|events|appointment|appointments)\b", lowered):
@@ -336,7 +361,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,

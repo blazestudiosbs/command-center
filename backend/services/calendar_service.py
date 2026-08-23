@@ -32,7 +32,7 @@ def get_status(user_id):
         "connected": gmail["connected"] and read_authorized, "authorized": read_authorized,
         "write_authorized": write_authorized, "account": gmail.get("email_address"),
         "access": "create_and_edit" if write_authorized else "read_only",
-        "can_create": write_authorized, "can_edit": write_authorized, "can_delete": False,
+        "can_create": write_authorized, "can_edit": write_authorized, "can_delete": write_authorized,
         "detail": ("Google Calendar is connected for confirmed creation and editing." if write_authorized else "Google Calendar is connected with read-only access." if read_authorized else "Authorize Google Calendar access."),
     }
 
@@ -83,9 +83,11 @@ def day_range(which):
 
 
 def _normalized_change(*, title, start, end, location=None, all_day=False):
-    title, location = title.strip(), (location or "").strip()
+    title, location = (title or "").strip(), (location or "").strip()
     if not title:
         raise ValueError("Event title is required.")
+    if not start or not end:
+        raise ValueError("Event start and end are required.")
     if all_day:
         start_value, end_value = date.fromisoformat(start), date.fromisoformat(end)
     else:
@@ -114,13 +116,13 @@ def _get_google_event(user_id, event_id):
 
 
 def prepare_change(user_id, *, action, event_id=None, **fields):
-    if action not in {"create", "edit"}:
+    if action not in {"create", "edit", "delete"}:
         raise ValueError("Unsupported calendar action.")
     if not get_status(user_id)["write_authorized"]:
         raise RuntimeError("Authorize Calendar creation and editing with Google first.")
-    desired = _normalized_change(**fields)
+    desired = None if action == "delete" else _normalized_change(**fields)
     before, etag = None, None
-    if action == "edit":
+    if action in {"edit", "delete"}:
         if not event_id:
             raise ValueError("Choose an event to edit.")
         source = _get_google_event(user_id, event_id)
@@ -164,16 +166,22 @@ def confirm_change(user_id, change_id):
     try:
         if row["action"] == "create":
             response = requests.post(EVENTS_URL, headers=headers, params={"sendUpdates": "none"}, json=_google_body(payload["after"]), timeout=15)
-        else:
+        elif row["action"] == "edit":
             if row["event_etag"]:
                 headers["If-Match"] = row["event_etag"]
             response = requests.patch(f"{EVENTS_URL}/{quote(row['event_id'], safe='')}", headers=headers, params={"sendUpdates": "none"}, json=_google_body(payload["after"]), timeout=15)
+        else:
+            if row["event_etag"]:
+                headers["If-Match"] = row["event_etag"]
+            response = requests.delete(f"{EVENTS_URL}/{quote(row['event_id'], safe='')}", headers=headers, params={"sendUpdates": "none"}, timeout=15)
         response.raise_for_status()
     except Exception:
         with connection() as conn:
             conn.execute("UPDATE calendar_change_requests SET status = 'failed', completed_utc = ? WHERE id = ?", (_iso(_utc_now()), change_id))
         raise
-    completed = _event(response.json())
+    completed = payload["before"] if row["action"] == "delete" else _event(response.json())
+    if row["action"] == "delete":
+        completed = {**completed, "status": "deleted"}
     with connection() as conn:
         conn.execute("UPDATE calendar_change_requests SET status = 'completed', completed_utc = ? WHERE id = ?", (_iso(_utc_now()), change_id))
     return {"id": change_id, "action": row["action"], "status": "completed", "event": completed}

@@ -282,6 +282,18 @@ class VeraConversationServiceTests(unittest.TestCase):
         result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Move Dentist tomorrow to 8pm", client_message_id="discord:calendar-edit-missing", source="discord")
         self.assertIn("No change was prepared", result["assistant_message"]["content"])
 
+    @patch("services.vera_conversation_service.calendar_service.prepare_change")
+    @patch("services.vera_conversation_service.calendar_service.list_events")
+    @patch("services.vera_conversation_service.calendar_service.get_status", return_value={"write_authorized": True})
+    def test_calendar_delete_request_only_prepares_pending_deletion(self, _status, events, prepare):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="calendar", capability="delete", enabled=True)
+        events.return_value = [{"id": "event-1", "title": "Test Event", "start": "2026-08-24T19:00:00-04:00", "end": "2026-08-24T20:00:00-04:00", "all_day": False, "location": None}]
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Delete Test Event tomorrow", client_message_id="discord:calendar-delete-1", source="discord")
+        self.assertIn("pending—not deleted", result["assistant_message"]["content"])
+        prepare.assert_called_once_with("owner", action="delete", event_id="event-1")
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(
