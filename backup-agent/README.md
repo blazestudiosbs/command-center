@@ -27,7 +27,7 @@ cd /opt/command-center
 sudo ./backup-agent/install.sh
 ```
 
-The installer refuses to continue when `/mnt/media` is not mounted, preventing accidental backups onto the root disk.
+The installer waits up to 60 seconds for migration 18 and refuses to continue when `/mnt/media` is not mounted, preventing startup races and accidental backups onto the root disk.
 
 ## Verify
 
