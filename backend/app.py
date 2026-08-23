@@ -24,6 +24,7 @@ from routers.home_assistant import router as home_assistant_router
 from routers.infrastructure import router as infrastructure_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
+from routers.projects import router as projects_router
 from services import advisor_service, agent_permission_service, auth_service, backup_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, infrastructure_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
@@ -114,6 +115,7 @@ app.include_router(home_assistant_router)
 app.include_router(infrastructure_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)
+app.include_router(projects_router)
 
 class AskRequest(BaseModel):
     question: str

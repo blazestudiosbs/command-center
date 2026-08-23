@@ -208,6 +208,11 @@ export async function setBackupEnabled(enabled) {
   return res.data;
 }
 
+export async function getProjectAwareness() {
+  const res = await axios.get("/api/projects/awareness");
+  return res.data;
+}
+
 export async function learnGmailSender(sender, category) {
   const res = await axios.post(
     "/api/gmail/learning/sender-rule",

@@ -2673,6 +2673,24 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .infrastructure-issues article.critical { border-left-color: var(--danger); }
 .infrastructure-issues p { margin: 4px 0 0; color: var(--muted); }
 .backup-safety-note { margin: 14px 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.project-awareness-note { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 11px; background: rgb(13 23 40 / 72%); }
+.project-awareness-note span,
+.project-unlinked,
+.project-tracking-note { color: var(--muted); }
+.project-awareness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+.project-awareness-card { padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(145deg, rgb(18 31 51 / 96%), rgb(13 23 40 / 96%)); }
+.project-awareness-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.project-awareness-heading h2 { margin: 0; font-size: 1.05rem; }
+.project-awareness-heading p { margin: 5px 0 0; color: var(--muted); font-size: 0.84rem; text-transform: capitalize; }
+.project-repo-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.project-repo-facts span { display: grid; gap: 4px; padding: 10px 12px; border-radius: 9px; background: rgb(9 17 31 / 65%); }
+.project-repo-facts small { color: var(--muted); font-size: 0.68rem; font-weight: 750; text-transform: uppercase; }
+.project-latest-commit { display: flex; align-items: flex-start; gap: 11px; margin-top: 14px; }
+.project-latest-commit > div { display: grid; gap: 4px; min-width: 0; }
+.project-latest-commit strong { overflow-wrap: anywhere; font-size: 0.88rem; }
+.project-latest-commit small { color: var(--muted); font-size: 0.75rem; }
+.project-github-link { width: fit-content; min-height: 34px; margin-top: 14px; padding: 7px 11px; font-size: 0.8rem; }
+.project-tracking-note { display: block; margin-top: 10px; font-size: 0.72rem; }
 
 @media (max-width: 850px) {
   .infrastructure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
