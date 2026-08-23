@@ -202,6 +202,29 @@ class VeraConversationServiceTests(unittest.TestCase):
         propose.assert_called_once_with("owner", "store-news@amazon.com", source="discord")
         post.assert_not_called()
 
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.gmail_rule_service.propose")
+    def test_follow_up_can_create_rule_from_prior_discord_request(self, propose, post):
+        propose.return_value = {
+            "sender": "store-news@amazon.com", "validation_match_count": 3, "status": "pending"
+        }
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        conversation_service.add_message(
+            conversation_id=conversation["id"], owner_user_id="owner", role="user",
+            content="Permanently delete mail from store-news@amazon.com.",
+        )
+        conversation_service.add_message(
+            conversation_id=conversation["id"], owner_user_id="owner", role="assistant",
+            content="Would you like a Gmail rule?",
+        )
+        result = vera_conversation_service.respond(
+            owner_user_id="owner", conversation_id=conversation["id"],
+            content="Yes, make that rule", client_message_id="discord:gmail-rule-follow-up", source="discord",
+        )
+        self.assertIn("pending—not active", result["assistant_message"]["content"])
+        propose.assert_called_once_with("owner", "store-news@amazon.com", source="discord")
+        post.assert_not_called()
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

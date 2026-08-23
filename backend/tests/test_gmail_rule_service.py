@@ -33,6 +33,19 @@ class GmailRuleServiceTests(unittest.TestCase):
         self.assertEqual(request["sender"], "store-news@amazon.com")
         self.assertIsNone(gmail_rule_service.parse_rule_request("Delete Amazon newsletters"))
 
+    def test_parser_accepts_explicit_delete_rule_wording(self):
+        request = gmail_rule_service.parse_rule_request(
+            "Create a rule to delete email from store-news@amazon.com"
+        )
+        self.assertEqual(request["sender"], "store-news@amazon.com")
+
+    def test_follow_up_resolves_sender_from_prior_request(self):
+        request = gmail_rule_service.resolve_rule_request(
+            "Yes, make that rule",
+            ["Anything new or old from store-news@amazon.com can be permanently deleted."],
+        )
+        self.assertEqual(request["sender"], "store-news@amazon.com")
+
     @patch("services.gmail_rule_service._count_matches", return_value=12)
     @patch("services.gmail_rule_service.gmail_service.get_status", return_value={"connected": True})
     def test_proposal_is_pending_after_validation(self, _status, _count):

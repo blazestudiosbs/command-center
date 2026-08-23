@@ -155,8 +155,10 @@ def _gmail_answer(owner_user_id: str, content: str) -> str | None:
     return heading + "\n" + "\n".join(lines)
 
 
-def _gmail_rule_answer(owner_user_id: str, content: str, source: str) -> str | None:
-    request = gmail_rule_service.parse_rule_request(content)
+def _gmail_rule_answer(
+    owner_user_id: str, content: str, source: str, prior_user_messages: list[str] | None = None
+) -> str | None:
+    request = gmail_rule_service.resolve_rule_request(content, prior_user_messages)
     if not request:
         return None
     try:
@@ -224,7 +226,10 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     if user_message["id"] != existing[-1]["id"]:
         return {"duplicate": True, "user_message": user_message, "assistant_message": None}
 
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source) or _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    prior_user_messages = [
+        message["content"] for message in existing[:-1] if message["role"] == "user"
+    ]
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,

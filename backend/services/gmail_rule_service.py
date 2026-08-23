@@ -17,13 +17,35 @@ def _now() -> str:
 
 
 def parse_rule_request(content: str) -> dict | None:
-    if not re.search(r"\b(permanently delete(?:d)?|delete(?:d)? permanently|permanent(?:ly)? deletion)\b", content, re.I):
+    destructive_wording = re.search(
+        r"\b(permanently delete(?:d)?|delete(?:d)? permanently|permanent(?:ly)? deletion)\b",
+        content,
+        re.I,
+    )
+    rule_wording = re.search(r"\b(add|create|make|set up|apply)\b.*\b(rule|filter)\b", content, re.I)
+    delete_wording = re.search(r"\b(delete|deletes|deleted|deleting|remove)\b", content, re.I)
+    if not destructive_wording and not (rule_wording and delete_wording):
         return None
     match = re.search(EMAIL_PATTERN, content, re.I)
     if not match:
         return None
     sender = parseaddr(match.group(0))[1].strip().lower()
     return {"sender": sender, "action": "permanent_delete", "match_existing": True}
+
+
+def resolve_rule_request(content: str, prior_user_messages: list[str] | None = None) -> dict | None:
+    direct = parse_rule_request(content)
+    if direct:
+        return direct
+    if not re.search(r"\b(rule|filter)\b", content, re.I):
+        return None
+    if not re.search(r"\b(add|create|make|set up|apply|yes|do it)\b", content, re.I):
+        return None
+    for prior in reversed(prior_user_messages or []):
+        request = parse_rule_request(prior)
+        if request:
+            return request
+    return None
 
 
 def _query(sender: str) -> str:
