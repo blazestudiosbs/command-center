@@ -218,9 +218,19 @@ export async function getCalendarStatus() {
   return res.data;
 }
 
-export async function startCalendarOAuth() {
-  const res = await axios.post("/api/calendar/oauth/start", null, { headers: csrfHeaders() });
+export async function startCalendarOAuth(write = false) {
+  const res = await axios.post(`/api/calendar/oauth/start?write=${write}`, null, { headers: csrfHeaders() });
   return res.data.authorization_url;
+}
+
+export async function prepareCalendarChange(change) {
+  const res = await axios.post("/api/calendar/changes/prepare", change, { headers: csrfHeaders() });
+  return res.data.change;
+}
+
+export async function confirmCalendarChange(changeId) {
+  const res = await axios.post("/api/calendar/changes/confirm", { change_id: changeId }, { headers: csrfHeaders() });
+  return res.data;
 }
 
 export async function getCalendarEvents(days = 7) {

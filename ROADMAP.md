@@ -18,6 +18,6 @@
 ## Next
 - Optional GitHub token connection and deployment verification
 - Multi-Server Support
-- Calendar event creation with confirmation controls
+- Calendar event creation and editing with confirmation controls — complete
 - Expanded Home Assistant integration
 - Voice Interface

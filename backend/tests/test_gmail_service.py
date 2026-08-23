@@ -61,6 +61,11 @@ class GmailServiceTests(unittest.TestCase):
         scopes = set(parse_qs(urlparse(authorization_url).query)["scope"][0].split())
         self.assertEqual(scopes, {gmail_service.GMAIL_MODIFY_SCOPE, gmail_service.CALENDAR_READONLY_SCOPE})
 
+    def test_calendar_write_authorization_is_explicit(self):
+        authorization_url = gmail_service.authorization_url("owner", calendar_write=True)
+        scopes = set(parse_qs(urlparse(authorization_url).query)["scope"][0].split())
+        self.assertEqual(scopes, {gmail_service.GMAIL_MODIFY_SCOPE, gmail_service.CALENDAR_EVENTS_SCOPE})
+
     @patch("services.gmail_service.requests.get")
     @patch("services.gmail_service.requests.post")
     def test_callback_encrypts_refresh_token_and_connects(self, post, get):

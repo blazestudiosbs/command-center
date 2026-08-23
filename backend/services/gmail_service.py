@@ -18,6 +18,7 @@ GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 GMAIL_FULL_SCOPE = "https://mail.google.com/"
 CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 CATEGORIES = (
     "Accounts/Passwords", "Accounts/Verification", "Accounts/Security",
     "Financial/Taxes", "Financial/Banking", "Financial/Payments", "Financial/Bills",
@@ -117,7 +118,7 @@ def get_status(user_id: str) -> dict:
     }
 
 
-def authorization_url(user_id: str, *, permanent_delete: bool = False, calendar_read: bool = False) -> str:
+def authorization_url(user_id: str, *, permanent_delete: bool = False, calendar_read: bool = False, calendar_write: bool = False) -> str:
     if not configured():
         raise RuntimeError("Gmail OAuth is not configured.")
     config = _config()
@@ -130,7 +131,9 @@ def authorization_url(user_id: str, *, permanent_delete: bool = False, calendar_
             (state, user_id, _iso(now + timedelta(minutes=10)), _iso(now)),
         )
     scopes = [GMAIL_FULL_SCOPE if permanent_delete else GMAIL_MODIFY_SCOPE]
-    if calendar_read:
+    if calendar_write:
+        scopes.append(CALENDAR_EVENTS_SCOPE)
+    elif calendar_read:
         scopes.append(CALENDAR_READONLY_SCOPE)
     return AUTH_URL + "?" + urlencode(
         {

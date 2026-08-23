@@ -64,6 +64,7 @@ class VeraStorageTests(unittest.TestCase):
                 (16, "gmail_automation_rules"),
                 (17, "infrastructure_agents"),
                 (18, "backup_agent"),
+                (19, "calendar_changes"),
             ],
         )
         self.assertTrue(
@@ -97,6 +98,7 @@ class VeraStorageTests(unittest.TestCase):
                 "infrastructure_agent_alert_state",
                 "backup_agent_settings",
                 "backup_agent_alert_state",
+                "calendar_change_requests",
             }.issubset(tables)
         )
 

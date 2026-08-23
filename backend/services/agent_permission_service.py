@@ -30,12 +30,12 @@ AGENTS = (
     {
         "id": "calendar",
         "name": "Calendar Agent",
-        "description": "Reads upcoming Google Calendar events for Vera.",
+        "description": "Reads events and makes explicitly confirmed Google Calendar changes.",
         "capabilities": (
             {"id": "read_events", "name": "Read event titles and times", "default": False, "available": True},
             {"id": "search", "name": "Search upcoming events", "default": False, "available": True},
-            {"id": "create", "name": "Create events", "default": False, "available": False},
-            {"id": "edit", "name": "Edit events", "default": False, "available": False},
+            {"id": "create", "name": "Create confirmed events", "default": False, "available": True},
+            {"id": "edit", "name": "Edit confirmed events", "default": False, "available": True},
             {"id": "delete", "name": "Delete events", "default": False, "available": False},
         ),
     },

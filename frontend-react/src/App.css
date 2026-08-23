@@ -2702,13 +2702,24 @@ body .secondary-button { border: 1px solid var(--border-strong); background: var
 .calendar-events-heading h2 { margin: 0; }
 .calendar-events-heading p { margin: 5px 0 0; color: var(--muted); }
 .calendar-events { display: grid; margin-top: 14px; }
-.calendar-events article { display: grid; grid-template-columns: minmax(180px, .5fr) 1fr; gap: 16px; padding: 13px 0; border-top: 1px solid var(--border); }
+.calendar-events article { display: grid; grid-template-columns: minmax(180px, .5fr) 1fr auto; align-items: center; gap: 16px; padding: 13px 0; border-top: 1px solid var(--border); }
+.calendar-events article.selected { margin-inline: -10px; padding-inline: 10px; border-radius: 10px; background: rgb(74 137 220 / 10%); }
 .calendar-events time { color: #b8c8dc; font-size: 0.84rem; }
 .calendar-events article > div { display: grid; gap: 4px; }
 .calendar-events small { color: var(--muted); }
+.calendar-change-panel, .calendar-confirm-panel { margin-top: 16px; }
+.calendar-change-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.calendar-change-form label { display: grid; gap: 7px; color: var(--muted); font-size: .78rem; font-weight: 700; }
+.calendar-change-form label:first-child, .calendar-change-form label:nth-child(5) { grid-column: 1 / -1; }
+.calendar-change-form input:not([type="checkbox"]) { min-height: 42px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; background: rgb(7 15 28 / 76%); color: var(--text); }
+.calendar-change-form .calendar-check { display: flex; flex-direction: row; align-items: center; align-self: end; }
+.calendar-confirm-panel > p { color: var(--muted); }
+.calendar-confirm-actions { display: flex; gap: 10px; margin-top: 16px; }
 @media (max-width: 650px) {
   .calendar-events-heading { flex-direction: column; }
   .calendar-events article { grid-template-columns: 1fr; gap: 5px; }
+  .calendar-change-form { grid-template-columns: 1fr; }
+  .calendar-change-form label:first-child, .calendar-change-form label:nth-child(5) { grid-column: auto; }
 }
 
 @media (max-width: 850px) {
