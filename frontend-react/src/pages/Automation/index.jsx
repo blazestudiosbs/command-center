@@ -1,18 +1,5 @@
-import Panel from "../../components/Panel";
+import WorkspacePlaceholder from "../../components/WorkspacePlaceholder";
 
 export default function AutomationPage() {
-  return (
-    <div className="page-content">
-      <header className="page-header">
-        <div>
-          <h1>Automation Workspace</h1>
-          <p className="page-subtitle">Automation tasks, schedulers, and event triggers.</p>
-        </div>
-      </header>
-
-      <Panel title="Automation Overview">
-        <p className="answer">Automation workspace is ready for workflow orchestration and event-driven tooling.</p>
-      </Panel>
-    </div>
-  );
+  return <WorkspacePlaceholder title="Automation" subtitle="Schedulers, triggers, and repeatable workflows." description="Automation history and event-driven workflows will appear here when those capabilities are enabled." />;
 }

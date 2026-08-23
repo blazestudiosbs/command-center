@@ -21,21 +21,21 @@ import { getCurrentUser, logout } from "./services/api";
 import VeraControl from "./components/VeraControl";
 
 const navItems = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "advisor", label: "Advisor" },
-  { id: "journal", label: "Decision Journal" },
-  { id: "home", label: "Home" },
-  { id: "monitoring", label: "Monitoring" },
-  { id: "gmail", label: "Gmail" },
-  { id: "agents", label: "Agent Permissions" },
-  { id: "projects", label: "Projects" },
-  { id: "infrastructure", label: "Infrastructure" },
-  { id: "minecraft", label: "Minecraft" },
-  { id: "plex", label: "Plex" },
-  { id: "security", label: "Security" },
-  { id: "development", label: "Development" },
-  { id: "automation", label: "Automation" },
-  { id: "settings", label: "Settings" },
+  { id: "dashboard", label: "Dashboard", group: "Overview" },
+  { id: "advisor", label: "Advisor", group: "Overview" },
+  { id: "journal", label: "Decision Journal", group: "Overview" },
+  { id: "home", label: "Home", group: "Connected services" },
+  { id: "gmail", label: "Gmail", group: "Connected services" },
+  { id: "minecraft", label: "Minecraft", group: "Connected services" },
+  { id: "plex", label: "Plex", group: "Connected services" },
+  { id: "monitoring", label: "Monitoring", group: "Operations" },
+  { id: "agents", label: "Agent Permissions", group: "Operations" },
+  { id: "security", label: "Security", group: "Operations" },
+  { id: "development", label: "Development", group: "Operations" },
+  { id: "projects", label: "Projects", group: "Workspace" },
+  { id: "infrastructure", label: "Infrastructure", group: "Workspace" },
+  { id: "automation", label: "Automation", group: "Workspace" },
+  { id: "settings", label: "Settings", group: "Workspace" },
 ];
 
 const pageMap = {
@@ -87,13 +87,9 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar items={navItems} active={activePage} onSelect={setActivePage} />
+      <Sidebar items={navItems} active={activePage} onSelect={setActivePage} user={user} onSignOut={signOut} />
       <main className="main-content">
         <VeraControl />
-        <div className="session-bar">
-          <span>Signed in as {user.username}</span>
-          <button type="button" className="secondary-button" onClick={signOut}>Sign out</button>
-        </div>
         <ActivePage />
       </main>
     </div>
