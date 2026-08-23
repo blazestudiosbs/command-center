@@ -207,6 +207,47 @@ def _calendar_create_answer(owner_user_id: str, content: str) -> str | None:
     return f"I prepared “{title}” for {when}, lasting one hour. It is pending—not active. Review and confirm it on the Calendar page within 15 minutes."
 
 
+def _calendar_edit_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(edit|change|move|reschedule)\b", lowered):
+        return None
+    day_match = re.search(r"\b(today|tomorrow)\b", lowered)
+    time_matches = list(re.finditer(r"\b(?:to|at)\s+(\d{1,2})(?::?(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b", lowered))
+    if not day_match or not time_matches:
+        return None
+    if not agent_permission_service.is_allowed(owner_user_id, "calendar", "edit"):
+        return "The Calendar Agent’s edit permission is off. Enable Edit confirmed events in Agent Permissions first."
+    if not calendar_service.get_status(owner_user_id).get("write_authorized"):
+        return "Calendar editing is not authorized with Google. Open Calendar in Command Center and authorize creation and editing first."
+    title_match = re.search(r"\b(?:edit|change|move|reschedule)\s+(?:the\s+)?(?:calendar\s+)?(?:event\s+)?(.+?)\s+(?:today|tomorrow)\b", content, flags=re.IGNORECASE)
+    if not title_match:
+        return "Tell me the event title, day, and new time—for example, “Move Work Day tomorrow to 8 PM.”"
+    requested_title = title_match.group(1).strip(" ,.-")
+    start_range, end_range = calendar_service.day_range(day_match.group(1))
+    events = calendar_service.list_events(owner_user_id, start=start_range, end=end_range, limit=50)
+    matches = [event for event in events if requested_title.casefold() in event["title"].casefold()]
+    if not matches:
+        return f"I found no event matching “{requested_title}” {day_match.group(1)}. No change was prepared."
+    if len(matches) > 1:
+        choices = "\n".join(f"- {event['title']} at {event['start']}" for event in matches[:5])
+        return f"I found multiple matching events. No change was prepared. Choose one on the Calendar page:\n{choices}"
+    event = matches[0]
+    if event["all_day"]:
+        return "That is an all-day event. Edit it on the Calendar page so the start and end dates are explicit."
+    time_match = time_matches[-1]
+    hour, minute = int(time_match.group(1)), int(time_match.group(2) or 0)
+    meridiem = time_match.group(3)[0]
+    if hour < 1 or hour > 12 or minute > 59:
+        return "I could not understand the new event time. Try a time such as 8 PM."
+    hour = (hour % 12) + (12 if meridiem == "p" else 0)
+    old_start = datetime.fromisoformat(event["start"].replace("Z", "+00:00")).astimezone(calendar_service.LOCAL_TIMEZONE)
+    old_end = datetime.fromisoformat(event["end"].replace("Z", "+00:00")).astimezone(calendar_service.LOCAL_TIMEZONE)
+    new_start = old_start.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    new_end = new_start + (old_end - old_start)
+    calendar_service.prepare_change(owner_user_id, action="edit", event_id=event["id"], title=event["title"], start=new_start.isoformat(), end=new_end.isoformat(), location=event.get("location"), all_day=False)
+    return f"I prepared a change to move “{event['title']}” to {new_start.strftime('%-I:%M %p')} {day_match.group(1)}. It is pending—not active. Review and confirm it on the Calendar page within 15 minutes."
+
+
 def _calendar_answer(owner_user_id: str, content: str) -> str | None:
     lowered = content.lower()
     if not re.search(r"\b(calendar|schedule|event|events|appointment|appointments)\b", lowered):
@@ -295,7 +336,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,

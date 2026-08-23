@@ -255,6 +255,33 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertIn("T12:30:00", kwargs["start"])
         post.assert_not_called()
 
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.calendar_service.prepare_change")
+    @patch("services.vera_conversation_service.calendar_service.list_events")
+    @patch("services.vera_conversation_service.calendar_service.get_status", return_value={"write_authorized": True})
+    def test_calendar_edit_request_matches_event_and_preserves_duration(self, _status, events, prepare, post):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="calendar", capability="edit", enabled=True)
+        events.return_value = [{"id": "event-1", "title": "Work Day", "start": "2026-08-24T19:00:00-04:00", "end": "2026-08-24T20:30:00-04:00", "all_day": False, "location": "Office"}]
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Move Work Day tomorrow to 8pm", client_message_id="discord:calendar-edit-1", source="discord")
+        self.assertIn("pending—not active", result["assistant_message"]["content"])
+        kwargs = prepare.call_args.kwargs
+        self.assertEqual(kwargs["action"], "edit")
+        self.assertEqual(kwargs["event_id"], "event-1")
+        self.assertIn("T20:00:00", kwargs["start"])
+        self.assertIn("T21:30:00", kwargs["end"])
+        post.assert_not_called()
+
+    @patch("services.vera_conversation_service.calendar_service.list_events", return_value=[])
+    @patch("services.vera_conversation_service.calendar_service.get_status", return_value={"write_authorized": True})
+    def test_calendar_edit_request_fails_closed_when_no_event_matches(self, _status, _events):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="calendar", capability="edit", enabled=True)
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Move Dentist tomorrow to 8pm", client_message_id="discord:calendar-edit-missing", source="discord")
+        self.assertIn("No change was prepared", result["assistant_message"]["content"])
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(
