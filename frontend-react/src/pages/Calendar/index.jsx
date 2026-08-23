@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { confirmCalendarChange, getCalendarEvents, getCalendarStatus, prepareCalendarChange, startCalendarOAuth } from "../../services/api";
+import { confirmCalendarChange, getCalendarEvents, getCalendarStatus, getPendingCalendarChanges, prepareCalendarChange, startCalendarOAuth } from "../../services/api";
 
 function displayTime(event) {
   if (event.all_day) return `${event.start} · All day`;
@@ -31,6 +31,10 @@ export default function CalendarPage() {
     catch (err) { setError(err.response?.data?.detail || err.message || "Calendar status unavailable"); }
   }
   useEffect(() => { loadStatus(); }, []);
+  useEffect(() => {
+    if (!status?.write_authorized) return;
+    getPendingCalendarChanges().then((changes) => { if (changes.length) setPending(changes[0]); }).catch(() => {});
+  }, [status?.write_authorized]);
 
   async function connect(write = false) {
     setBusy(true);

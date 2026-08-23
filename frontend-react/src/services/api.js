@@ -233,6 +233,11 @@ export async function confirmCalendarChange(changeId) {
   return res.data;
 }
 
+export async function getPendingCalendarChanges() {
+  const res = await axios.get("/api/calendar/changes/pending");
+  return res.data.changes;
+}
+
 export async function getCalendarEvents(days = 7) {
   const res = await axios.get(`/api/calendar/events?days=${encodeURIComponent(days)}`);
   return res.data;

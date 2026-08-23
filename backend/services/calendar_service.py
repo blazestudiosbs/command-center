@@ -142,6 +142,14 @@ def pending_change_action(user_id, change_id):
     return row["action"]
 
 
+def pending_changes(user_id, limit=20):
+    now = _iso(_utc_now())
+    with connection() as conn:
+        conn.execute("UPDATE calendar_change_requests SET status = 'expired' WHERE user_id = ? AND status = 'pending' AND expires_utc <= ?", (user_id, now))
+        rows = conn.execute("SELECT id,action,payload_json,expires_utc FROM calendar_change_requests WHERE user_id = ? AND status = 'pending' ORDER BY created_utc DESC LIMIT ?", (user_id, max(1, min(int(limit), 50)))).fetchall()
+    return [{"id": row["id"], "action": row["action"], "status": "pending", "expires_utc": row["expires_utc"], **json.loads(row["payload_json"])} for row in rows]
+
+
 def confirm_change(user_id, change_id):
     now = _utc_now()
     with connection() as conn:

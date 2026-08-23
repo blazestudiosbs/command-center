@@ -46,6 +46,11 @@ def events(days: int = Query(default=7, ge=1, le=31), session: dict = Depends(cu
     return {"events": result, "days": days, "time_zone": "America/Detroit"}
 
 
+@router.get("/changes/pending")
+def pending_changes(session: dict = Depends(current_session)):
+    return {"changes": calendar_service.pending_changes(session["user_id"])}
+
+
 @router.post("/changes/prepare")
 def prepare_change(request: CalendarChangeRequest, session: dict = Depends(require_csrf)):
     try:

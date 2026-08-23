@@ -238,6 +238,23 @@ class VeraConversationServiceTests(unittest.TestCase):
         self.assertIn("Office", result["assistant_message"]["content"])
         post.assert_not_called()
 
+    @patch("services.vera_conversation_service.requests.post")
+    @patch("services.vera_conversation_service.calendar_service.prepare_change")
+    @patch("services.vera_conversation_service.calendar_service.get_status", return_value={"write_authorized": True})
+    def test_calendar_create_request_prepares_confirmation_instead_of_listing_events(self, _status, prepare, post):
+        from services import agent_permission_service
+        agent_permission_service.set_permission(user_id="owner", agent_id="calendar", capability="create", enabled=True)
+        prepare.return_value = {"id": "change-1", "status": "pending"}
+        conversation = conversation_service.create_conversation("owner", "Discord")
+        result = vera_conversation_service.respond(owner_user_id="owner", conversation_id=conversation["id"], content="Can you create a calander event to have lunch with Sara tomorrow at 1230pm please?", client_message_id="discord:calendar-create-1", source="discord")
+        self.assertIn("Lunch with Sara", result["assistant_message"]["content"])
+        self.assertIn("pending—not active", result["assistant_message"]["content"])
+        kwargs = prepare.call_args.kwargs
+        self.assertEqual(kwargs["action"], "create")
+        self.assertEqual(kwargs["title"], "Lunch with Sara")
+        self.assertIn("T12:30:00", kwargs["start"])
+        post.assert_not_called()
+
     def test_rejects_unclosed_or_untagged_reasoning(self):
         self.assertEqual(vera_conversation_service._clean_model_text("<think>still reasoning"), "")
         self.assertEqual(

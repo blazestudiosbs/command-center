@@ -176,6 +176,37 @@ def _gmail_rule_answer(
     )
 
 
+def _calendar_create_answer(owner_user_id: str, content: str) -> str | None:
+    lowered = content.lower()
+    if not re.search(r"\b(create|add|schedule|make)\b", lowered) or not re.search(r"\b(calendar|calander|event|appointment)\b", lowered):
+        return None
+    day_match = re.search(r"\b(today|tomorrow)\b", lowered)
+    time_match = re.search(r"\bat\s+(\d{1,2})(?::?(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b", lowered)
+    if not day_match or not time_match:
+        return "I can prepare that event, but I need a day (today or tomorrow) and a time such as 12:30 PM."
+    if not agent_permission_service.is_allowed(owner_user_id, "calendar", "create"):
+        return "The Calendar Agent’s create permission is off. Enable Create confirmed events in Agent Permissions first."
+    status = calendar_service.get_status(owner_user_id)
+    if not status.get("write_authorized"):
+        return "Calendar creation is not authorized with Google. Open Calendar in Command Center and authorize creation and editing first."
+    hour, minute = int(time_match.group(1)), int(time_match.group(2) or 0)
+    meridiem = time_match.group(3)[0]
+    if hour < 1 or hour > 12 or minute > 59:
+        return "I could not understand that event time. Try a time such as 12:30 PM."
+    hour = (hour % 12) + (12 if meridiem == "p" else 0)
+    target = datetime.now(calendar_service.LOCAL_TIMEZONE).date() + timedelta(days=1 if day_match.group(1) == "tomorrow" else 0)
+    start = datetime.combine(target, datetime.min.time(), calendar_service.LOCAL_TIMEZONE).replace(hour=hour, minute=minute)
+    end = start + timedelta(hours=1)
+    title = re.sub(r"^.*?\b(?:(?:calendar|calander)\s+event|event)\s+(?:to\s+)?", "", content, flags=re.IGNORECASE)
+    title = re.sub(r"\b(?:today|tomorrow)\b.*$", "", title, flags=re.IGNORECASE).strip(" ,.-")
+    title = re.sub(r"^(?:to\s+)?have\s+", "", title, flags=re.IGNORECASE).strip()
+    title = (title or "New event").strip()
+    title = title[:1].upper() + title[1:]
+    change = calendar_service.prepare_change(owner_user_id, action="create", title=title, start=start.isoformat(), end=end.isoformat(), all_day=False)
+    when = start.strftime("%a %b %-d at %-I:%M %p")
+    return f"I prepared “{title}” for {when}, lasting one hour. It is pending—not active. Review and confirm it on the Calendar page within 15 minutes."
+
+
 def _calendar_answer(owner_user_id: str, content: str) -> str | None:
     lowered = content.lower()
     if not re.search(r"\b(calendar|schedule|event|events|appointment|appointments)\b", lowered):
@@ -264,7 +295,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
