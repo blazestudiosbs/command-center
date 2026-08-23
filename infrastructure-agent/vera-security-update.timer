@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Vera security updates Monday at 03:00 Detroit time
+
+[Timer]
+OnCalendar=Mon *-*-* 03:00:00 America/Detroit
+Persistent=true
+
+[Install]
+WantedBy=timers.target

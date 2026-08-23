@@ -1,0 +1,3 @@
+// Vera reports when a reboot is required but never performs one automatically.
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";

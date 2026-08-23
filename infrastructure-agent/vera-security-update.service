@@ -1,0 +1,10 @@
+[Unit]
+Description=Vera Weekly Ubuntu Security Update Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/command-center/infrastructure-agent/agent.py security-update
+TimeoutStartSec=1h

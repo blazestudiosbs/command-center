@@ -184,6 +184,20 @@ export async function reviewGmailAutomationRule(ruleId, approve) {
   return res.data;
 }
 
+export async function getInfrastructureStatus() {
+  const res = await axios.get("/api/infrastructure/status");
+  return res.data;
+}
+
+export async function updateInfrastructureSettings(securityUpdatesEnabled, healthChecksEnabled) {
+  const res = await axios.put(
+    "/api/infrastructure/settings",
+    { security_updates_enabled: securityUpdatesEnabled, health_checks_enabled: healthChecksEnabled },
+    { headers: csrfHeaders() },
+  );
+  return res.data;
+}
+
 export async function learnGmailSender(sender, category) {
   const res = await axios.post(
     "/api/gmail/learning/sender-rule",

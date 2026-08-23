@@ -20,9 +20,10 @@ from routers.agents import router as agents_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
+from routers.infrastructure import router as infrastructure_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
-from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
+from services import advisor_service, agent_permission_service, auth_service, budget_service, cloud_response_service, development_service, discord_alert_service, gmail_cloud_learning_service, gmail_rule_service, gmail_service, infrastructure_service, minecraft_service, openai_service, plex_service, policy_service, router_service, security_service, service_monitoring_service, task_service, worker_service
 from storage import initialize_storage
 
 
@@ -56,6 +57,15 @@ async def gmail_cloud_learning_loop():
         await asyncio.sleep(3600)
 
 
+async def infrastructure_alert_loop():
+    while True:
+        try:
+            await asyncio.to_thread(infrastructure_service.alert_on_new_issues)
+        except Exception as exc:
+            print(f"Infrastructure alert check failed safely: {type(exc).__name__}")
+        await asyncio.sleep(300)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     initialize_storage()
@@ -63,18 +73,22 @@ async def lifespan(_app: FastAPI):
     monitor_task = asyncio.create_task(service_monitor_loop())
     gmail_task = asyncio.create_task(gmail_organizer_loop())
     gmail_learning_task = asyncio.create_task(gmail_cloud_learning_loop())
+    infrastructure_task = asyncio.create_task(infrastructure_alert_loop())
     try:
         yield
     finally:
         monitor_task.cancel()
         gmail_task.cancel()
         gmail_learning_task.cancel()
+        infrastructure_task.cancel()
         with suppress(asyncio.CancelledError):
             await monitor_task
         with suppress(asyncio.CancelledError):
             await gmail_task
         with suppress(asyncio.CancelledError):
             await gmail_learning_task
+        with suppress(asyncio.CancelledError):
+            await infrastructure_task
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
@@ -82,6 +96,7 @@ app.include_router(auth_router)
 app.include_router(agents_router)
 app.include_router(control_router)
 app.include_router(home_assistant_router)
+app.include_router(infrastructure_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)
 

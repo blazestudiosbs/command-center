@@ -6,5 +6,6 @@ __pycache__/
 config/tasks.json
 config/task_runs/
 config/vera.db*
+config/infrastructure-agent-status.json
 secrets/*
 !secrets/.gitkeep

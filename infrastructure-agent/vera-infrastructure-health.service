@@ -1,0 +1,13 @@
+[Unit]
+Description=Vera Infrastructure Health Agent
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/command-center/infrastructure-agent/agent.py health
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/command-center/config
