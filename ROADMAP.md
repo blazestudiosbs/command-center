@@ -14,6 +14,7 @@
 - Verified Backup & Recovery Agent
 - Local Project and GitHub repository awareness
 - Read-only Google Calendar integration and Vera queries
+- Local, read-only Daily Briefing Agent with optional Discord delivery
 
 ## Next
 - Approval-gated commit, push, and Command Center deployment — complete

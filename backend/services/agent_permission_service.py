@@ -40,6 +40,15 @@ AGENTS = (
         ),
     },
     {
+        "id": "daily_briefing",
+        "name": "Daily Briefing Agent",
+        "description": "Builds a local morning summary and can deliver it to Bruce on Discord.",
+        "capabilities": (
+            {"id": "generate", "name": "Generate local briefings", "default": True, "available": True},
+            {"id": "scheduled_delivery", "name": "Deliver scheduled Discord briefings", "default": False, "available": True},
+        ),
+    },
+    {
         "id": "service_monitor",
         "name": "Service Monitor",
         "description": "Observes Docker services and records state changes.",

@@ -19,6 +19,7 @@ import GmailPage from "./pages/Gmail";
 import AgentsPage from "./pages/Agents";
 import CalendarPage from "./pages/Calendar";
 import ReleasesPage from "./pages/Releases";
+import BriefingPage from "./pages/Briefing";
 import { getCurrentUser, logout } from "./services/api";
 import VeraControl from "./components/VeraControl";
 
@@ -26,6 +27,7 @@ const navItems = [
   { id: "dashboard", label: "Dashboard", group: "Overview" },
   { id: "advisor", label: "Advisor", group: "Overview" },
   { id: "journal", label: "Decision Journal", group: "Overview" },
+  { id: "briefing", label: "Daily Briefing", group: "Overview" },
   { id: "home", label: "Home", group: "Connected services" },
   { id: "gmail", label: "Gmail", group: "Connected services" },
   { id: "calendar", label: "Calendar", group: "Connected services" },
@@ -46,6 +48,7 @@ const pageMap = {
   dashboard: DashboardPage,
   advisor: AdvisorPage,
   journal: JournalPage,
+  briefing: BriefingPage,
   home: HomePage,
   monitoring: MonitoringPage,
   gmail: GmailPage,

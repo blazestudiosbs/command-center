@@ -67,6 +67,7 @@ class VeraStorageTests(unittest.TestCase):
                 (19, "calendar_changes"),
                 (20, "calendar_delete_changes"),
                 (21, "release_approvals"),
+                (22, "daily_briefing"),
             ],
         )
         self.assertTrue(
@@ -102,6 +103,8 @@ class VeraStorageTests(unittest.TestCase):
                 "backup_agent_alert_state",
                 "calendar_change_requests",
                 "release_approvals",
+                "daily_briefing_settings",
+                "daily_briefing_runs",
             }.issubset(tables)
         )
 

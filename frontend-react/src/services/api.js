@@ -203,6 +203,26 @@ export async function getBackupStatus() {
   return res.data;
 }
 
+export async function getDailyBriefingStatus() {
+  const res = await axios.get("/api/daily-briefing/status");
+  return res.data;
+}
+
+export async function updateDailyBriefingSettings(settings) {
+  const res = await axios.put("/api/daily-briefing/settings", settings, { headers: csrfHeaders() });
+  return res.data;
+}
+
+export async function previewDailyBriefing() {
+  const res = await axios.post("/api/daily-briefing/preview", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
+export async function sendDailyBriefing() {
+  const res = await axios.post("/api/daily-briefing/send", null, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function setBackupEnabled(enabled) {
   const res = await axios.put("/api/backups/settings", { enabled }, { headers: csrfHeaders() });
   return res.data;
