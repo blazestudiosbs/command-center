@@ -1,0 +1,11 @@
+[Unit]
+Description=Report server health to Vera every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

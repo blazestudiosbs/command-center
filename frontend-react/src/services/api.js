@@ -189,6 +189,26 @@ export async function getInfrastructureStatus() {
   return res.data;
 }
 
+export async function getManagedServers() {
+  const res = await axios.get("/api/servers");
+  return res.data;
+}
+
+export async function registerManagedServer(name, hostname) {
+  const res = await axios.post("/api/servers", { name, hostname }, { headers: csrfHeaders() });
+  return res.data.server;
+}
+
+export async function setManagedServerEnabled(serverId, enabled) {
+  const res = await axios.put(`/api/servers/${encodeURIComponent(serverId)}/enabled`, { enabled }, { headers: csrfHeaders() });
+  return res.data.server;
+}
+
+export async function rotateManagedServerToken(serverId) {
+  const res = await axios.post(`/api/servers/${encodeURIComponent(serverId)}/rotate-token`, null, { headers: csrfHeaders() });
+  return res.data.server;
+}
+
 export async function updateInfrastructureSettings(securityUpdatesEnabled, healthChecksEnabled) {
   const res = await axios.put(
     "/api/infrastructure/settings",

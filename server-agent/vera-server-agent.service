@@ -1,0 +1,13 @@
+[Unit]
+Description=Vera Read-Only Server Heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/vera/server-agent.env
+ExecStart=/usr/bin/python3 /opt/vera-server-agent/agent.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

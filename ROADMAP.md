@@ -15,10 +15,10 @@
 - Local Project and GitHub repository awareness
 - Read-only Google Calendar integration and Vera queries
 - Local, read-only Daily Briefing Agent with optional Discord delivery
+- Read-only multi-server heartbeat monitoring
 
 ## Next
 - Approval-gated commit, push, and Command Center deployment — complete
-- Multi-Server Support
 - Calendar event creation, editing, and deletion with confirmation controls — complete
 - Expanded Home Assistant integration
 - Voice Interface
