@@ -69,6 +69,7 @@ class VeraStorageTests(unittest.TestCase):
                 (21, "release_approvals"),
                 (22, "daily_briefing"),
                 (23, "multi_server"),
+                (24, "home_light_controls"),
             ],
         )
         self.assertTrue(
@@ -107,6 +108,8 @@ class VeraStorageTests(unittest.TestCase):
                 "daily_briefing_settings",
                 "daily_briefing_runs",
                 "managed_servers",
+                "home_light_permissions",
+                "home_light_action_requests",
             }.issubset(tables)
         )
 

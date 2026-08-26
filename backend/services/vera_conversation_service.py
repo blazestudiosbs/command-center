@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from services import agent_permission_service, audit_service, calendar_service, cloud_response_service, conversation_service, openai_service, policy_service, release_service, router_service, service_monitoring_service
+from services import agent_permission_service, audit_service, calendar_service, cloud_response_service, conversation_service, home_assistant_service, openai_service, policy_service, release_service, router_service, service_monitoring_service
 from services import gmail_rule_service, gmail_service
 
 
@@ -110,6 +110,32 @@ def _monitoring_answer(content: str) -> str | None:
         f"{summary['healthy']} of {summary['total']} monitored services are running. "
         f"Unavailable: {', '.join(unavailable)}."
     )
+
+
+def _home_light_answer(owner_user_id: str, content: str) -> str | None:
+    match = re.search(r"\bturn\s+(on|off)\s+(?:the\s+)?(.+?)(?:\s+light)?[.!?]*$", content.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    if not agent_permission_service.is_allowed(owner_user_id, "home_assistant", "control_lights"):
+        return "The Home Assistant Agent’s light-control permission is off. Enable it in Agent Permissions first."
+    desired_action = f"turn_{match.group(1).lower()}"
+    requested = re.sub(r"\s+please$", "", match.group(2).strip(), flags=re.IGNORECASE).casefold()
+    overview = home_assistant_service.get_overview()
+    if overview["status"]["connection_status"] != "connected":
+        return "Home Assistant is not connected to Vera."
+    permissions = home_assistant_service.light_permissions(owner_user_id)
+    lights = [item for item in overview["entities"] if item["domain"] == "light" and permissions.get(item["entity_id"], False)]
+    matches = [item for item in lights if requested in item["name"].casefold() or requested == item["entity_id"].removeprefix("light.").replace("_", " ")]
+    if not matches:
+        return f"I found no Vera-approved light matching “{match.group(2).strip()}”. Enable that light on the Home page first."
+    if len(matches) > 1:
+        return "I found more than one approved matching light. No action was prepared: " + ", ".join(item["name"] for item in matches[:5]) + "."
+    try:
+        prepared = home_assistant_service.prepare_light_action(owner_user_id, entity_id=matches[0]["entity_id"], action=desired_action)
+    except (PermissionError, ValueError, RuntimeError, requests.RequestException) as exc:
+        return f"I could not safely prepare that light action: {exc}"
+    audit_service.append_event(actor_user_id=owner_user_id, action=f"home.light_{desired_action}_prepared", resource_type="home_light_action", resource_id=prepared["id"], outcome="allowed", details={"entity_id": prepared["entity_id"], "expires_utc": prepared["expires_utc"], "source": "conversation"})
+    return f"I prepared {desired_action.replace('_', ' ')} for {prepared['entity_name']}. It is pending—not active. Review and confirm it on the Home page within 10 minutes."
 
 
 def _gmail_question(content: str) -> tuple[str, str] | None:
@@ -394,15 +420,17 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
     prior_user_messages = [
         message["content"] for message in existing[:-1] if message["role"] == "user"
     ]
-    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_pending_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _release_answer(owner_user_id, content) or _monitoring_history_answer(content) or _monitoring_answer(content)
+    home_text = _home_light_answer(owner_user_id, content)
+    monitoring_text = _gmail_rule_answer(owner_user_id, content, source, prior_user_messages) or _gmail_answer(owner_user_id, content) or _calendar_pending_answer(owner_user_id, content) or _calendar_delete_answer(owner_user_id, content) or _calendar_edit_answer(owner_user_id, content) or _calendar_create_answer(owner_user_id, content) or _calendar_answer(owner_user_id, content) or _release_answer(owner_user_id, content) or home_text or _monitoring_history_answer(content) or _monitoring_answer(content)
     if monitoring_text:
+        local_capability = "home_assistant" if home_text and monitoring_text == home_text else "gmail" if _gmail_question(content) else "service_monitoring"
         assistant = conversation_service.add_message(
             conversation_id=conversation_id,
             owner_user_id=owner_user_id,
             role="assistant",
             content=monitoring_text,
             model="vera-monitoring",
-            metadata={"source": source, "provider": "local", "capability": "service_monitoring"},
+            metadata={"source": source, "provider": "local", "capability": local_capability},
         )
         audit_service.append_event(
             actor_user_id=owner_user_id,
@@ -415,7 +443,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 "source": source,
                 "route": "local",
                 "model": "vera-monitoring",
-                "capability": "gmail" if _gmail_question(content) else "service_monitoring",
+                "capability": local_capability,
             },
         )
         audit_service.append_event(
@@ -429,7 +457,7 @@ def respond(*, owner_user_id: str, conversation_id: str, content: str, client_me
                 "source": source,
                 "provider": "local",
                 "model": "vera-monitoring",
-                "capability": "gmail" if _gmail_question(content) else "service_monitoring",
+                "capability": local_capability,
             },
         )
         return {"duplicate": False, "user_message": user_message, "assistant_message": assistant}

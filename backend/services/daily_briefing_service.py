@@ -101,7 +101,7 @@ def format_message(briefing):
     return "\n".join(lines)[:1750]
 
 
-def run(user_id, *, mode="manual"):
+def run(user_id, *, mode="manual", local_date=None):
     briefing = generate(user_id)
     result = discord_alert_service.send("Vera Daily Briefing", format_message(briefing), "info")
     status = "sent" if result.get("sent") else "failed"
@@ -109,7 +109,7 @@ def run(user_id, *, mode="manual"):
     with connection() as conn:
         conn.execute("INSERT INTO daily_briefing_runs (id,user_id,mode,status,summary_json,created_utc,sent_utc) VALUES (?,?,?,?,?,?,?)", (str(uuid.uuid4()), user_id, mode, status, json.dumps(briefing), now, now if status == "sent" else None))
         if mode == "scheduled":
-            local_date = datetime.now(LOCAL_TIMEZONE).date().isoformat()
+            local_date = local_date or datetime.now(LOCAL_TIMEZONE).date().isoformat()
             conn.execute(
                 "UPDATE daily_briefing_settings SET last_attempt_local_date=?,last_sent_local_date=CASE WHEN ?='sent' THEN ? ELSE last_sent_local_date END,updated_utc=? WHERE user_id=?",
                 (local_date, status, local_date, now, user_id),
@@ -125,4 +125,4 @@ def run_if_due(user_id, now=None):
         return {"status": "skipped"}
     if not agent_permission_service.is_allowed(user_id, "daily_briefing", "scheduled_delivery"):
         return {"status": "skipped", "reason": "Scheduled delivery permission is off."}
-    return run(user_id, mode="scheduled")
+    return run(user_id, mode="scheduled", local_date=today)

@@ -40,6 +40,15 @@ AGENTS = (
         ),
     },
     {
+        "id": "home_assistant",
+        "name": "Home Assistant Agent",
+        "description": "Reads Home Assistant and controls only individually approved lights after confirmation.",
+        "capabilities": (
+            {"id": "read_devices", "name": "Read device states", "default": True, "available": True},
+            {"id": "control_lights", "name": "Prepare and confirm approved light controls", "default": False, "available": True},
+        ),
+    },
+    {
         "id": "daily_briefing",
         "name": "Daily Briefing Agent",
         "description": "Builds a local morning summary and can deliver it to Bruce on Discord.",

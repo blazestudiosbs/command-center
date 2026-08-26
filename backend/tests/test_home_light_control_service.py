@@ -1,0 +1,55 @@
+import os
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+from services import home_assistant_service
+from storage import connection, initialize_storage
+
+
+class HomeLightControlServiceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.environment = patch.dict(os.environ, {"VERA_DATABASE_PATH": os.path.join(self.temp_dir.name, "vera.db"), "HOME_ASSISTANT_URL": "http://homeassistant:8123", "HOME_ASSISTANT_TOKEN": "secret"}, clear=False)
+        self.environment.start()
+        initialize_storage()
+        with connection() as conn:
+            conn.execute("INSERT INTO users (id,username,password_hash,role,active,created_utc,updated_utc) VALUES ('owner','bruce','test','owner',1,'2026-08-26T00:00:00Z','2026-08-26T00:00:00Z')")
+
+    def tearDown(self):
+        self.environment.stop()
+        self.temp_dir.cleanup()
+
+    def test_only_light_entities_can_receive_permission(self):
+        with self.assertRaises(ValueError):
+            home_assistant_service.set_light_permission("owner", "lock.front_door", True)
+        permission = home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        self.assertTrue(permission["enabled"])
+
+    def test_action_requires_device_permission(self):
+        with self.assertRaises(PermissionError):
+            home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+
+    def test_confirm_rechecks_permission_and_calls_only_light_service(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        with patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "on"}):
+            prepared = home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+        response = Mock()
+        response.raise_for_status.return_value = None
+        with patch.object(home_assistant_service.requests, "post", return_value=response) as post:
+            result = home_assistant_service.confirm_light_action("owner", prepared["id"])
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(post.call_args.args[0], "http://homeassistant:8123/api/services/light/turn_off")
+        self.assertEqual(post.call_args.kwargs["json"], {"entity_id": "light.kitchen"})
+
+    def test_revoked_device_permission_blocks_pending_confirmation(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        with patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "on"}):
+            prepared = home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+        home_assistant_service.set_light_permission("owner", "light.kitchen", False)
+        with self.assertRaises(PermissionError):
+            home_assistant_service.confirm_light_action("owner", prepared["id"])
+
+
+if __name__ == "__main__":
+    unittest.main()

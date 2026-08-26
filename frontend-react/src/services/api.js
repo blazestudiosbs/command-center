@@ -92,6 +92,26 @@ export async function getHomeAssistantOverview() {
   return res.data;
 }
 
+export async function setHomeLightPermission(entityId, enabled) {
+  const res = await axios.put("/api/home-assistant/lights/permissions", { entity_id: entityId, enabled }, { headers: csrfHeaders() });
+  return res.data.permission;
+}
+
+export async function getPendingHomeLightActions() {
+  const res = await axios.get("/api/home-assistant/lights/actions/pending");
+  return res.data.actions;
+}
+
+export async function prepareHomeLightAction(entityId, action) {
+  const res = await axios.post("/api/home-assistant/lights/actions/prepare", { entity_id: entityId, action }, { headers: csrfHeaders() });
+  return res.data.action;
+}
+
+export async function confirmHomeLightAction(actionId) {
+  const res = await axios.post("/api/home-assistant/lights/actions/confirm", { action_id: actionId }, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getMonitoringStatus() {
   const res = await axios.get("/api/monitoring/status");
   return res.data;

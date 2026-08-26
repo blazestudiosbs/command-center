@@ -16,9 +16,9 @@
 - Read-only Google Calendar integration and Vera queries
 - Local, read-only Daily Briefing Agent with optional Discord delivery
 - Read-only multi-server heartbeat monitoring
+- Confirmation-required Home Assistant light control with per-device permissions
 
 ## Next
 - Approval-gated commit, push, and Command Center deployment — complete
 - Calendar event creation, editing, and deletion with confirmation controls — complete
-- Expanded Home Assistant integration
 - Voice Interface
