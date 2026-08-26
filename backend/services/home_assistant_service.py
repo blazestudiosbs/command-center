@@ -81,6 +81,8 @@ def get_overview(limit: int = 250) -> dict:
         entity_id = str(item.get("entity_id", ""))
         if not entity_id:
             continue
+        group_members = attributes.get("entity_id")
+        group_members = [member for member in group_members if isinstance(member, str) and member.startswith("light.")] if entity_id.startswith("light.") and isinstance(group_members, list) else []
         entities.append({
             "entity_id": entity_id,
             "domain": entity_id.partition(".")[0],
@@ -89,8 +91,11 @@ def get_overview(limit: int = 250) -> dict:
             "unit": attributes.get("unit_of_measurement"),
             "device_class": attributes.get("device_class"),
             "last_changed": item.get("last_changed"),
+            "group_members": group_members,
         })
-    return {"status": status, "entities": entities}
+    grouped_members = {member for entity in entities for member in entity["group_members"]}
+    visible_entities = [entity for entity in entities if entity["entity_id"] not in grouped_members]
+    return {"status": status, "entities": visible_entities, "hidden_group_members": len(entities) - len(visible_entities)}
 
 
 def light_permissions(user_id):

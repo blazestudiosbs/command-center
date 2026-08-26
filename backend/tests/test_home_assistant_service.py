@@ -33,6 +33,22 @@ class HomeAssistantServiceTests(unittest.TestCase):
         self.assertNotIn("secret-token", str(result))
         self.assertEqual(get.call_args_list[1].args[0], "http://homeassistant.local:8123/api/states")
 
+    @patch("services.home_assistant_service.requests.get")
+    def test_light_groups_replace_their_physical_members(self, get):
+        root, states = Mock(), Mock()
+        states.json.return_value = [
+            {"entity_id": "light.dining_one", "state": "on", "attributes": {"friendly_name": "Dining One"}},
+            {"entity_id": "light.dining_two", "state": "on", "attributes": {"friendly_name": "Dining Two"}},
+            {"entity_id": "light.dining_chandelier", "state": "on", "attributes": {"friendly_name": "Dining Room Chandelier", "entity_id": ["light.dining_one", "light.dining_two"]}},
+            {"entity_id": "sensor.temperature", "state": "72", "attributes": {"friendly_name": "Temperature"}},
+        ]
+        get.side_effect = [root, states]
+        with patch.dict(os.environ, {"HOME_ASSISTANT_URL": "http://homeassistant:8123", "HOME_ASSISTANT_TOKEN": "token"}, clear=True):
+            result = home_assistant_service.get_overview()
+        self.assertEqual([item["entity_id"] for item in result["entities"]], ["light.dining_chandelier", "sensor.temperature"])
+        self.assertEqual(result["entities"][0]["group_members"], ["light.dining_one", "light.dining_two"])
+        self.assertEqual(result["hidden_group_members"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -69,11 +69,12 @@ export default function HomePage() {
         <span><small>Entities</small><strong>{entities.length}</strong></span>
         <span><small>Control</small><strong>Approved lights only</strong></span>
       </section>
+      {overview?.hidden_group_members > 0 && <p className="answer">{overview.hidden_group_members} physical light {overview.hidden_group_members === 1 ? "entity is" : "entities are"} consolidated under Home Assistant light groups.</p>}
       {overview && !overview.status.configured && <p className="answer">Add Home Assistant configuration to the private server environment to connect this view.</p>}
       <section className="home-entities" aria-label="Home Assistant entities">
         {entities.map((entity) => (
           <article className="home-entity" key={entity.entity_id}>
-            <div><strong>{entity.name}</strong><small>{entity.entity_id}</small></div>
+            <div><strong>{entity.name}</strong><small>{entity.entity_id}{entity.group_members?.length ? ` · group of ${entity.group_members.length}` : ""}</small></div>
             <span>{entity.state}{entity.unit ? ` ${entity.unit}` : ""}</span>
             {entity.domain === "light" && <div>
               <label><input type="checkbox" disabled={busy} checked={entity.control_enabled} onChange={(event) => changePermission(entity, event.target.checked)} /> Vera control</label>
