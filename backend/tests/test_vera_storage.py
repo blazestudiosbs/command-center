@@ -70,6 +70,7 @@ class VeraStorageTests(unittest.TestCase):
                 (22, "daily_briefing"),
                 (23, "multi_server"),
                 (24, "home_light_controls"),
+                (25, "alexa_voice_gateway"),
             ],
         )
         self.assertTrue(
@@ -110,6 +111,7 @@ class VeraStorageTests(unittest.TestCase):
                 "managed_servers",
                 "home_light_permissions",
                 "home_light_action_requests",
+                "alexa_voice_sessions",
             }.issubset(tables)
         )
 

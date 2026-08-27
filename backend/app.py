@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from routers.auth import router as auth_router
+from routers.alexa import router as alexa_router
 from routers.backups import router as backups_router
 from routers.briefings import router as briefings_router
 from routers.calendar import router as calendar_router
@@ -124,6 +125,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Command Center V0", lifespan=lifespan)
+app.include_router(alexa_router)
 app.include_router(auth_router)
 app.include_router(backups_router)
 app.include_router(briefings_router)

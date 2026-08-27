@@ -14,6 +14,14 @@ AGENTS = (
         ),
     },
     {
+        "id": "alexa_voice",
+        "name": "Alexa Voice Gateway",
+        "description": "Accepts authenticated Echo speech through Vera's private Alexa relay.",
+        "capabilities": (
+            {"id": "receive_voice", "name": "Receive authenticated Echo conversations", "default": True, "available": True},
+        ),
+    },
+    {
         "id": "gmail",
         "name": "Gmail Agent",
         "description": "Reads and summarizes the connected Gmail account.",
