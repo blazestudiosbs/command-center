@@ -1,0 +1,43 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "name": "Vera Family Assistant",
+          "summary": "Private voice access to the Stykemain family assistant.",
+          "description": "Private voice access to Vera for the Stykemain household.",
+          "examplePhrases": [
+            "Alexa, open Vera",
+            "Alexa, ask Vera what's on my calendar",
+            "Alexa, ask Vera to turn off the dining room lights"
+          ],
+          "keywords": ["family", "assistant", "vera"]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "testingInstructions": "Private household skill.",
+      "category": "ORGANIZERS_AND_ASSISTANTS",
+      "distributionCountries": ["US"]
+    },
+    "apis": {
+      "custom": {
+        "endpoint": { "uri": "https://vera-alexa-relay.REPLACE.workers.dev/alexa", "sslCertificateType": "Wildcard" },
+        "interfaces": []
+      }
+    },
+    "manifestVersion": "1.0",
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": true,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "en-US": {
+          "privacyPolicyUrl": "https://REPLACE.example/privacy",
+          "termsOfUseUrl": "https://REPLACE.example/terms"
+        }
+      }
+    }
+  }
+}
