@@ -21,7 +21,7 @@
     },
     "apis": {
       "custom": {
-        "endpoint": { "uri": "https://vera-alexa-relay.REPLACE.workers.dev/alexa", "sslCertificateType": "Wildcard" },
+        "endpoint": { "uri": "https://vera-alexa-relay.blazestudiosbs.workers.dev/alexa", "sslCertificateType": "Wildcard" },
         "interfaces": []
       }
     },
@@ -34,8 +34,8 @@
       "containsAds": false,
       "locales": {
         "en-US": {
-          "privacyPolicyUrl": "https://REPLACE.example/privacy",
-          "termsOfUseUrl": "https://REPLACE.example/terms"
+          "privacyPolicyUrl": "https://vera-alexa-relay.blazestudiosbs.workers.dev/privacy",
+          "termsOfUseUrl": "https://vera-alexa-relay.blazestudiosbs.workers.dev/terms"
         }
       }
     }
