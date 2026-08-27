@@ -46,6 +46,26 @@ class HouseholdServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             household_service.link_voice_identity(member_id="guest", provider="amazon_alexa", subject_id="guest-subject")
 
+    def test_unknown_identity_is_queued_without_raw_subject_and_can_be_linked(self):
+        with self.assertRaises(household_service.UnlinkedVoiceIdentityError):
+            household_service.resolve_voice_identity(provider="amazon_alexa", subject_id="private-amazon-subject")
+        pending = household_service.list_pending_voice_identities()
+        self.assertEqual(len(pending), 1)
+        self.assertNotIn("subject_hash", pending[0])
+        self.assertNotIn("private-amazon-subject", str(pending[0]))
+        household_service.link_pending_voice_identity(member_id="owner", pending_id=pending[0]["id"])
+        identity = household_service.resolve_voice_identity(provider="amazon_alexa", subject_id="private-amazon-subject")
+        self.assertEqual(identity["member_id"], "owner")
+        self.assertEqual(household_service.list_pending_voice_identities(), [])
+
+    def test_repeated_unknown_identity_updates_one_pending_record(self):
+        for _ in range(2):
+            with self.assertRaises(household_service.UnlinkedVoiceIdentityError):
+                household_service.resolve_voice_identity(provider="amazon_alexa", subject_id="same-subject")
+        pending = household_service.list_pending_voice_identities()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["seen_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

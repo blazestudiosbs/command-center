@@ -14,6 +14,10 @@ class VoiceIdentityLinkRequest(BaseModel):
     subject_id: str = Field(min_length=1, max_length=500)
 
 
+class PendingVoiceIdentityLinkRequest(BaseModel):
+    member_id: str = Field(min_length=1, max_length=100)
+
+
 @router.get("/members")
 def members(_session: dict = Depends(current_session)):
     return {"members": household_service.list_members()}
@@ -32,5 +36,27 @@ def link_voice_identity(request: VoiceIdentityLinkRequest, session: dict = Depen
         resource_id=request.member_id,
         outcome="succeeded",
         details={"provider": request.provider},
+    )
+    return {"identity": result}
+
+
+@router.get("/voice-identities/pending")
+def pending_voice_identities(_session: dict = Depends(current_session)):
+    return {"identities": household_service.list_pending_voice_identities()}
+
+
+@router.post("/voice-identities/pending/{pending_id}/link")
+def link_pending_voice_identity(pending_id: str, request: PendingVoiceIdentityLinkRequest, session: dict = Depends(require_csrf)):
+    try:
+        result = household_service.link_pending_voice_identity(member_id=request.member_id, pending_id=pending_id)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    audit_service.append_event(
+        actor_user_id=session["user_id"],
+        action="household.pending_voice_identity_linked",
+        resource_type="household_member",
+        resource_id=request.member_id,
+        outcome="succeeded",
+        details={"provider": result["provider"]},
     )
     return {"identity": result}
