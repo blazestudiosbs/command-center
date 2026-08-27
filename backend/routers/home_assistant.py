@@ -92,7 +92,8 @@ def confirm_light_action(request: LightConfirmationRequest, session: dict = Depe
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Home Assistant did not complete the confirmed light action.") from exc
-    audit_service.append_event(actor_user_id=session["user_id"], action=f"home.light_{result['action']}_confirmed", resource_type="home_assistant_entity", resource_id=result["entity_id"], outcome="succeeded", details={"action_id": request.action_id, "before_state": result["before_state"]})
+    except (RuntimeError, requests.RequestException) as exc:
+        audit_service.append_event(actor_user_id=session["user_id"], action="home.light_confirmation_failed", resource_type="home_light_action", resource_id=request.action_id, outcome="failed", details={"reason": str(exc)[:300]})
+        raise HTTPException(status_code=502, detail="Home Assistant did not verify the confirmed light action.") from exc
+    audit_service.append_event(actor_user_id=session["user_id"], action=f"home.light_{result['action']}_confirmed", resource_type="home_assistant_entity", resource_id=result["entity_id"], outcome="succeeded", details={"action_id": request.action_id, "before_state": result["before_state"], "observed_state": result["observed_state"], "verified": result["verified"]})
     return result

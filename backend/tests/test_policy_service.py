@@ -69,6 +69,11 @@ class PolicyServiceTests(unittest.TestCase):
                 user_id="owner", domain="email", capability="external_side_effect"
             ).allowed
         )
+        self.assertFalse(
+            policy_service.evaluate(
+                user_id="owner", domain="home", capability="manual_write"
+            ).allowed
+        )
 
         initialize_storage()
         self.assertEqual(policy_service.get_control_state()["mode"], "emergency_stop")

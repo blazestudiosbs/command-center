@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from services import home_assistant_service
+from services import home_assistant_service, policy_service
 from storage import connection, initialize_storage
 
 
@@ -36,9 +36,10 @@ class HomeLightControlServiceTests(unittest.TestCase):
             prepared = home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
         response = Mock()
         response.raise_for_status.return_value = None
-        with patch.object(home_assistant_service.requests, "post", return_value=response) as post:
+        with patch.object(home_assistant_service.requests, "post", return_value=response) as post, patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "off"}):
             result = home_assistant_service.confirm_light_action("owner", prepared["id"])
         self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["verified"])
         self.assertEqual(post.call_args.args[0], "http://homeassistant:8123/api/services/light/turn_off")
         self.assertEqual(post.call_args.kwargs["json"], {"entity_id": "light.kitchen"})
 
@@ -49,6 +50,33 @@ class HomeLightControlServiceTests(unittest.TestCase):
         home_assistant_service.set_light_permission("owner", "light.kitchen", False)
         with self.assertRaises(PermissionError):
             home_assistant_service.confirm_light_action("owner", prepared["id"])
+
+    def test_unavailable_light_cannot_be_prepared(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        with patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "unavailable"}):
+            with self.assertRaises(RuntimeError):
+                home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+
+    def test_emergency_stop_blocks_confirmation_before_service_call(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        with patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "on"}):
+            prepared = home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+        policy_service.set_control_mode(mode="emergency_stop", actor_user_id="owner", reason="test")
+        with patch.object(home_assistant_service.requests, "post") as post, self.assertRaises(policy_service.PolicyDeniedError):
+            home_assistant_service.confirm_light_action("owner", prepared["id"])
+        post.assert_not_called()
+
+    def test_mismatched_observed_state_is_not_completed(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        with patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "on"}):
+            prepared = home_assistant_service.prepare_light_action("owner", entity_id="light.kitchen", action="turn_off")
+        response = Mock()
+        response.raise_for_status.return_value = None
+        with patch.object(home_assistant_service.requests, "post", return_value=response), patch.object(home_assistant_service, "_entity", return_value={"entity_id": "light.kitchen", "name": "Kitchen", "state": "on"}), self.assertRaises(RuntimeError):
+            home_assistant_service.confirm_light_action("owner", prepared["id"])
+        with connection() as conn:
+            status = conn.execute("SELECT status FROM home_light_action_requests WHERE id=?", (prepared["id"],)).fetchone()["status"]
+        self.assertEqual(status, "failed")
 
 
 if __name__ == "__main__":

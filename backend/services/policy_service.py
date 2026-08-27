@@ -221,14 +221,14 @@ def evaluate(*, user_id: str, domain: str, capability: str) -> PolicyDecision:
             "Conversation and read-only access remain available.",
         )
 
-    if state["mode"] == "emergency_stop" and normalized_capability in AUTONOMOUS_CAPABILITIES:
+    if state["mode"] == "emergency_stop":
         return PolicyDecision(
             False,
             normalized_capability,
             normalized_domain,
             state["mode"],
             "deny",
-            "The emergency stop blocks all autonomous and agent actions.",
+            "The emergency stop blocks all write-capable and agent actions.",
         )
 
     if state["mode"] == "paused" and normalized_capability in AUTONOMOUS_CAPABILITIES:

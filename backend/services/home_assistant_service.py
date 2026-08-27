@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import requests
 
 from storage import connection
+from services import policy_service
 
 ACTION_TTL_MINUTES = 10
 
@@ -133,6 +134,8 @@ def prepare_light_action(user_id, *, entity_id, action):
     entity = _entity(entity_id)
     if entity["entity_id"] != entity_id:
         raise ValueError("Home Assistant returned an unexpected entity.")
+    if entity["state"] in {"unknown", "unavailable"}:
+        raise RuntimeError("That light does not currently have a reliable state.")
     now, action_id = _now(), str(uuid.uuid4())
     with connection() as conn:
         conn.execute("INSERT INTO home_light_action_requests (id,user_id,entity_id,action,entity_name,before_state,status,created_utc,expires_utc) VALUES (?,?,?,?,?,?,'pending',?,?)", (action_id, user_id, entity_id, action, entity["name"], entity["state"], _iso(now), _iso(now + timedelta(minutes=ACTION_TTL_MINUTES))))
@@ -148,6 +151,8 @@ def pending_light_actions(user_id, limit=20):
 
 
 def confirm_light_action(user_id, action_id):
+    # Enforce the platform brake immediately before any external side effect.
+    policy_service.require(user_id=user_id, domain="home", capability="manual_write")
     now = _now()
     with connection() as conn:
         row = conn.execute("SELECT * FROM home_light_action_requests WHERE id=? AND user_id=?", (action_id, user_id)).fetchone()
@@ -163,10 +168,16 @@ def confirm_light_action(user_id, action_id):
     try:
         response = requests.post(f"{url}/api/services/light/{row['action']}", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json={"entity_id": row["entity_id"]}, timeout=10)
         response.raise_for_status()
+        observed = _entity(row["entity_id"])
+        expected_state = "on" if row["action"] == "turn_on" else "off"
+        if observed["state"] != expected_state:
+            raise RuntimeError(
+                f"Home Assistant accepted the request but reported {observed['state']} instead of {expected_state}."
+            )
     except Exception:
         with connection() as conn:
             conn.execute("UPDATE home_light_action_requests SET status='failed',completed_utc=? WHERE id=?", (_iso(_now()), action_id))
         raise
     with connection() as conn:
         conn.execute("UPDATE home_light_action_requests SET status='completed',completed_utc=? WHERE id=?", (_iso(_now()), action_id))
-    return {"id": action_id, "entity_id": row["entity_id"], "entity_name": row["entity_name"], "action": row["action"], "before_state": row["before_state"], "status": "completed"}
+    return {"id": action_id, "entity_id": row["entity_id"], "entity_name": row["entity_name"], "action": row["action"], "before_state": row["before_state"], "observed_state": observed["state"], "verified": True, "status": "completed"}
