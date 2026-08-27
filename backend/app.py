@@ -24,6 +24,7 @@ from routers.agents import router as agents_router
 from routers.auth import require_csrf
 from routers.control import router as control_router
 from routers.home_assistant import router as home_assistant_router
+from routers.household import router as household_router
 from routers.infrastructure import router as infrastructure_router
 from routers.gmail import router as gmail_router
 from routers.monitoring import router as monitoring_router
@@ -133,6 +134,7 @@ app.include_router(calendar_router)
 app.include_router(agents_router)
 app.include_router(control_router)
 app.include_router(home_assistant_router)
+app.include_router(household_router)
 app.include_router(infrastructure_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)

@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from services import agent_permission_service, audit_service, conversation_service, vera_conversation_service
+from services import agent_permission_service, audit_service, conversation_service, household_service, vera_conversation_service
 from storage import connection
 
 
@@ -43,11 +43,11 @@ def authenticate(*, timestamp: str, signature: str, body: bytes, now: int | None
         raise AlexaRelayAuthenticationError("Invalid relay signature.")
 
 
-def _conversation(user_id: str, session_id: str) -> str:
+def _conversation(user_id: str, member_id: str, session_id: str) -> str:
     with connection() as conn:
         row = conn.execute(
-            "SELECT conversation_id FROM alexa_voice_sessions WHERE session_id=? AND user_id=?",
-            (session_id, user_id),
+            "SELECT conversation_id FROM alexa_voice_sessions WHERE session_id=? AND user_id=? AND household_member_id=?",
+            (session_id, user_id, member_id),
         ).fetchone()
     if row and conversation_service.get_conversation(row["conversation_id"], user_id):
         with connection() as conn:
@@ -60,14 +60,15 @@ def _conversation(user_id: str, session_id: str) -> str:
     with connection() as conn:
         conn.execute(
             """
-            INSERT INTO alexa_voice_sessions (session_id,user_id,conversation_id,created_utc,updated_utc)
-            VALUES (?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+            INSERT INTO alexa_voice_sessions (session_id,user_id,conversation_id,household_member_id,created_utc,updated_utc)
+            VALUES (?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))
             ON CONFLICT(session_id) DO UPDATE SET
                 user_id=excluded.user_id,
                 conversation_id=excluded.conversation_id,
+                household_member_id=excluded.household_member_id,
                 updated_utc=excluded.updated_utc
             """,
-            (session_id, user_id, conversation["id"]),
+            (session_id, user_id, conversation["id"], member_id),
         )
     return conversation["id"]
 
@@ -80,9 +81,11 @@ def _spoken(text: str) -> str:
     return shortened + "…"
 
 
-def respond(*, user_id: str, session_id: str, request_id: str, text: str) -> dict:
+def respond(*, provider: str, subject_id: str, session_id: str, request_id: str, text: str) -> dict:
+    identity = household_service.resolve_voice_identity(provider=provider, subject_id=subject_id)
+    user_id = identity["user_id"]
     agent_permission_service.require(user_id, "alexa_voice", "receive_voice")
-    conversation_id = _conversation(user_id, session_id)
+    conversation_id = _conversation(user_id, identity["member_id"], session_id)
     result = vera_conversation_service.respond(
         owner_user_id=user_id,
         conversation_id=conversation_id,
@@ -102,6 +105,6 @@ def respond(*, user_id: str, session_id: str, request_id: str, text: str) -> dic
         resource_id=conversation_id,
         request_id=request_id,
         outcome="succeeded",
-        details={"source": "alexa", "session_id_hash": hashlib.sha256(session_id.encode()).hexdigest()[:16]},
+        details={"source": "alexa", "household_member_id": identity["member_id"], "session_id_hash": hashlib.sha256(session_id.encode()).hexdigest()[:16]},
     )
     return {"text": spoken, "conversation_id": conversation_id, "duplicate": bool(result.get("duplicate"))}

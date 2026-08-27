@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from services import alexa_voice_service, auth_service, conversation_service
+from services import alexa_voice_service, auth_service, conversation_service, household_service
 from storage import initialize_storage
 
 
@@ -48,12 +48,17 @@ class AlexaVoiceServiceTests(unittest.TestCase):
             "duplicate": False,
             "assistant_message": {"content": "Hello from Vera"},
         }
-        first = alexa_voice_service.respond(user_id="owner", session_id="session-1", request_id="request-1", text="Hello")
-        second = alexa_voice_service.respond(user_id="owner", session_id="session-1", request_id="request-2", text="Again")
+        household_service.link_voice_identity(member_id="owner", provider="amazon_alexa", subject_id="amazon-user-1")
+        first = alexa_voice_service.respond(provider="amazon_alexa", subject_id="amazon-user-1", session_id="session-1", request_id="request-1", text="Hello")
+        second = alexa_voice_service.respond(provider="amazon_alexa", subject_id="amazon-user-1", session_id="session-1", request_id="request-2", text="Again")
         self.assertEqual(first["conversation_id"], second["conversation_id"])
         self.assertEqual(first["text"], "Hello from Vera")
         self.assertEqual(len(conversation_service.list_conversations("owner")), 1)
         self.assertEqual(respond.call_args.kwargs["source"], "alexa")
+
+    def test_unknown_voice_identity_fails_closed(self):
+        with self.assertRaises(household_service.UnlinkedVoiceIdentityError):
+            alexa_voice_service.respond(provider="amazon_alexa", subject_id="unknown", session_id="session-2", request_id="request-3", text="Hello")
 
     def test_spoken_response_is_bounded(self):
         spoken = alexa_voice_service._spoken("word " * 1000)
