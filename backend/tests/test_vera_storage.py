@@ -72,6 +72,7 @@ class VeraStorageTests(unittest.TestCase):
                 (24, "home_light_controls"),
                 (25, "alexa_voice_gateway"),
                 (26, "household_identity"),
+                (27, "pending_voice_identities"),
             ],
         )
         self.assertTrue(
@@ -115,6 +116,7 @@ class VeraStorageTests(unittest.TestCase):
                 "alexa_voice_sessions",
                 "household_members",
                 "household_voice_identities",
+                "pending_household_voice_identities",
             }.issubset(tables)
         )
 
