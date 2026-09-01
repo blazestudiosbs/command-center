@@ -78,6 +78,24 @@ class HomeLightControlServiceTests(unittest.TestCase):
             status = conn.execute("SELECT status FROM home_light_action_requests WHERE id=?", (prepared["id"],)).fetchone()["status"]
         self.assertEqual(status, "failed")
 
+    def test_direct_control_supports_brightness_color_and_effect(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        before = {"entity_id": "light.kitchen", "name": "Kitchen", "state": "off", "brightness": None, "color_temp_kelvin": None, "rgb_color": None, "effect": None, "supported_color_modes": ["color_temp", "rgb"], "effect_list": ["rainbow"], "min_color_temp_kelvin": 2200, "max_color_temp_kelvin": 6500}
+        after = {**before, "state": "on", "brightness": 200, "rgb_color": [255, 0, 0], "effect": "rainbow"}
+        response = Mock(); response.raise_for_status.return_value = None
+        with patch.object(home_assistant_service, "_entity", side_effect=[before, after]), patch.object(home_assistant_service.requests, "post", return_value=response) as post:
+            result = home_assistant_service.execute_light_action("owner", entity_id="light.kitchen", action="turn_on", brightness=200, rgb_color=(255, 0, 0), effect="rainbow")
+        self.assertTrue(result["verified"])
+        self.assertEqual(post.call_args.kwargs["json"], {"entity_id": "light.kitchen", "brightness": 200, "rgb_color": [255, 0, 0], "effect": "rainbow"})
+
+    def test_emergency_stop_blocks_direct_control(self):
+        home_assistant_service.set_light_permission("owner", "light.kitchen", True)
+        entity = {"entity_id": "light.kitchen", "name": "Kitchen", "state": "off", "brightness": None, "color_temp_kelvin": None, "rgb_color": None, "effect": None, "supported_color_modes": ["rgb"], "effect_list": [], "min_color_temp_kelvin": 2200, "max_color_temp_kelvin": 6500}
+        policy_service.set_control_mode(mode="emergency_stop", actor_user_id="owner", reason="test")
+        with patch.object(home_assistant_service, "_entity", return_value=entity), patch.object(home_assistant_service.requests, "post") as post, self.assertRaises(policy_service.PolicyDeniedError):
+            home_assistant_service.execute_light_action("owner", entity_id="light.kitchen", action="turn_on")
+        post.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

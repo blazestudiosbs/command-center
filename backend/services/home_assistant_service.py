@@ -123,7 +123,75 @@ def _entity(entity_id):
         raise ValueError("That Home Assistant light was not found.")
     response.raise_for_status()
     item = response.json()
-    return {"entity_id": item.get("entity_id"), "name": (item.get("attributes") or {}).get("friendly_name") or entity_id, "state": item.get("state", "unknown")}
+    attributes = item.get("attributes") or {}
+    return {
+        "entity_id": item.get("entity_id"),
+        "name": attributes.get("friendly_name") or entity_id,
+        "state": item.get("state", "unknown"),
+        "brightness": attributes.get("brightness"),
+        "color_temp_kelvin": attributes.get("color_temp_kelvin"),
+        "rgb_color": attributes.get("rgb_color"),
+        "effect": attributes.get("effect"),
+        "supported_color_modes": attributes.get("supported_color_modes") or [],
+        "effect_list": attributes.get("effect_list") or [],
+        "min_color_temp_kelvin": attributes.get("min_color_temp_kelvin"),
+        "max_color_temp_kelvin": attributes.get("max_color_temp_kelvin"),
+    }
+
+
+def execute_light_action(user_id, *, entity_id, action, brightness=None, color_temp_kelvin=None, rgb_color=None, effect=None):
+    """Execute an approved high-level light action without a confirmation ledger."""
+    if action not in {"turn_on", "turn_off"}:
+        raise ValueError("Only turn on and turn off are supported.")
+    if not entity_id.startswith("light.") or not light_permissions(user_id).get(entity_id, False):
+        raise PermissionError("This light is not approved for Vera control.")
+    before = _entity(entity_id)
+    if before["entity_id"] != entity_id:
+        raise ValueError("Home Assistant returned an unexpected entity.")
+    if before["state"] in {"unknown", "unavailable"}:
+        raise RuntimeError("That light does not currently have a reliable state.")
+
+    data = {"entity_id": entity_id}
+    if action == "turn_off" and any(value is not None for value in (brightness, color_temp_kelvin, rgb_color, effect)):
+        raise ValueError("Light settings can only be supplied with turn_on.")
+    if brightness is not None:
+        if not 1 <= int(brightness) <= 255:
+            raise ValueError("Brightness must be between 1 and 255.")
+        data["brightness"] = int(brightness)
+    if color_temp_kelvin is not None:
+        minimum = before["min_color_temp_kelvin"] or 2200
+        maximum = before["max_color_temp_kelvin"] or 6500
+        if not minimum <= int(color_temp_kelvin) <= maximum:
+            raise ValueError(f"Color temperature must be between {minimum} and {maximum} K.")
+        data["color_temp_kelvin"] = int(color_temp_kelvin)
+    if rgb_color is not None:
+        if len(rgb_color) != 3 or any(not 0 <= int(value) <= 255 for value in rgb_color):
+            raise ValueError("RGB color must contain three values between 0 and 255.")
+        data["rgb_color"] = [int(value) for value in rgb_color]
+    if effect is not None:
+        if effect not in before["effect_list"]:
+            raise ValueError("That effect is not supported by this light.")
+        data["effect"] = effect
+
+    # The platform brake is checked immediately before the external side effect.
+    policy_service.require(user_id=user_id, domain="home", capability="manual_write")
+    url, token = _config()
+    response = requests.post(
+        f"{url}/api/services/light/{action}",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json=data,
+        timeout=10,
+    )
+    response.raise_for_status()
+    observed = _entity(entity_id)
+    expected_state = "on" if action == "turn_on" else "off"
+    if observed["state"] != expected_state:
+        raise RuntimeError(f"Home Assistant reported {observed['state']} instead of {expected_state}.")
+    if brightness is not None and abs((observed["brightness"] or 0) - int(brightness)) > 5:
+        raise RuntimeError("Home Assistant did not verify the requested brightness.")
+    if effect is not None and observed["effect"] != effect:
+        raise RuntimeError("Home Assistant did not verify the requested effect.")
+    return {"entity_id": entity_id, "entity_name": before["name"], "action": action, "before": before, "observed": observed, "verified": True}
 
 
 def prepare_light_action(user_id, *, entity_id, action):

@@ -112,6 +112,11 @@ export async function confirmHomeLightAction(actionId) {
   return res.data;
 }
 
+export async function executeHomeLightAction(payload) {
+  const res = await axios.post("/api/home-assistant/lights/actions/execute", payload, { headers: csrfHeaders() });
+  return res.data;
+}
+
 export async function getMonitoringStatus() {
   const res = await axios.get("/api/monitoring/status");
   return res.data;

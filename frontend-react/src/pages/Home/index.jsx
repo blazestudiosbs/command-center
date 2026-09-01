@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { confirmHomeLightAction, getHomeAssistantOverview, getPendingHomeLightActions, prepareHomeLightAction, setHomeLightPermission } from "../../services/api";
+import { confirmHomeLightAction, executeHomeLightAction, getHomeAssistantOverview, getPendingHomeLightActions, setHomeLightPermission } from "../../services/api";
 
 export default function HomePage() {
   const [overview, setOverview] = useState(null);
@@ -30,12 +30,12 @@ export default function HomePage() {
     finally { setBusy(false); }
   }
 
-  async function prepare(entity, action) {
+  async function execute(entity, action) {
     setBusy(true); setMessage("");
     try {
-      const prepared = await prepareHomeLightAction(entity.entity_id, action);
-      setPending((current) => [prepared, ...current.filter((item) => item.id !== prepared.id)]);
-      setMessage(`${prepared.entity_name} is pending confirmation. No device change has been made.`);
+      const result = await executeHomeLightAction({ entity_id: entity.entity_id, action });
+      setMessage(`${result.entity_name} was turned ${action === "turn_on" ? "on" : "off"} and verified.`);
+      await load();
     } catch (err) { setError(err.response?.data?.detail || err.message); }
     finally { setBusy(false); }
   }
@@ -57,7 +57,7 @@ export default function HomePage() {
       <header className="page-header">
         <div>
           <h1>Home</h1>
-          <p className="page-subtitle">Home Assistant awareness with confirmation-required control for individually approved lights.</p>
+          <p className="page-subtitle">Home Assistant awareness with direct, verified control for individually approved lights.</p>
         </div>
         <button type="button" className="secondary-button" onClick={load}>Refresh</button>
       </header>
@@ -78,7 +78,7 @@ export default function HomePage() {
             <span>{entity.state}{entity.unit ? ` ${entity.unit}` : ""}</span>
             {entity.domain === "light" && <div>
               <label><input type="checkbox" disabled={busy} checked={entity.control_enabled} onChange={(event) => changePermission(entity, event.target.checked)} /> Vera control</label>
-              {entity.control_enabled && <><button type="button" className="text-button" disabled={busy || entity.state === "on"} onClick={() => prepare(entity, "turn_on")}>Prepare on</button><button type="button" className="text-button" disabled={busy || entity.state === "off"} onClick={() => prepare(entity, "turn_off")}>Prepare off</button></>}
+              {entity.control_enabled && <><button type="button" className="text-button" disabled={busy || entity.state === "on" || entity.state === "unavailable"} onClick={() => execute(entity, "turn_on")}>Turn on</button><button type="button" className="text-button" disabled={busy || entity.state === "off" || entity.state === "unavailable"} onClick={() => execute(entity, "turn_off")}>Turn off</button></>}
             </div>}
           </article>
         ))}
