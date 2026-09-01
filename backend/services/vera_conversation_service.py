@@ -129,13 +129,13 @@ def _home_light_answer(owner_user_id: str, content: str) -> str | None:
     if not matches:
         return f"I found no Vera-approved light matching “{match.group(2).strip()}”. Enable that light on the Home page first."
     if len(matches) > 1:
-        return "I found more than one approved matching light. No action was prepared: " + ", ".join(item["name"] for item in matches[:5]) + "."
+        return "I found more than one approved matching light. No action was taken: " + ", ".join(item["name"] for item in matches[:5]) + "."
     try:
-        prepared = home_assistant_service.prepare_light_action(owner_user_id, entity_id=matches[0]["entity_id"], action=desired_action)
+        result = home_assistant_service.execute_light_action(owner_user_id, entity_id=matches[0]["entity_id"], action=desired_action)
     except (PermissionError, ValueError, RuntimeError, requests.RequestException) as exc:
-        return f"I could not safely prepare that light action: {exc}"
-    audit_service.append_event(actor_user_id=owner_user_id, action=f"home.light_{desired_action}_prepared", resource_type="home_light_action", resource_id=prepared["id"], outcome="allowed", details={"entity_id": prepared["entity_id"], "expires_utc": prepared["expires_utc"], "source": "conversation"})
-    return f"I prepared {desired_action.replace('_', ' ')} for {prepared['entity_name']}. It is pending—not active. Review and confirm it on the Home page within 10 minutes."
+        return f"I could not safely control that light: {exc}"
+    audit_service.append_event(actor_user_id=owner_user_id, action=f"home.light_{desired_action}_conversation", resource_type="home_assistant_entity", resource_id=result["entity_id"], outcome="succeeded", details={"observed": result["observed"], "verified": True, "source": "conversation"})
+    return f"I turned {result['entity_name']} {'on' if desired_action == 'turn_on' else 'off'} and verified it."
 
 
 def _gmail_question(content: str) -> tuple[str, str] | None:
