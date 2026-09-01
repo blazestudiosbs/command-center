@@ -6,7 +6,7 @@
         {
           "name": "AskVeraIntent",
           "slots": [{ "name": "query", "type": "AMAZON.SearchQuery" }],
-          "samples": ["{query}", "ask {query}", "tell me {query}"]
+          "samples": ["ask {query}", "tell me {query}", "to {query}", "please {query}", "have Vera {query}"]
         },
         { "name": "AMAZON.CancelIntent", "samples": [] },
         { "name": "AMAZON.HelpIntent", "samples": [] },

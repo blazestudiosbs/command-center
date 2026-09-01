@@ -1,4 +1,5 @@
-import { SkillRequestSignatureVerifier, TimestampVerifier } from "ask-sdk-express-adapter";
+import { createVerify, X509Certificate } from "node:crypto";
+import { TimestampVerifier } from "ask-sdk-express-adapter";
 
 type AlexaEnvelope = {
   session?: {
@@ -29,6 +30,54 @@ type RelayPayload = {
 };
 
 const encoder = new TextEncoder();
+const ALEXA_CERT_HOST = "s3.amazonaws.com";
+const ALEXA_CERT_PATH_PREFIX = "/echo.api/";
+const ALEXA_CERT_NAME = "echo-api.amazon.com";
+const AMAZON_ROOT_CA_1_SHA256 = "87:DC:D4:DC:74:64:0A:32:2C:D2:05:55:25:06:D1:BE:64:F1:25:96:25:80:96:54:49:86:B4:85:0B:C7:27:06";
+const certificateCache = new Map<string, X509Certificate[]>();
+
+function headerValue(headers: Headers, name: string): string {
+  return headers.get(name)?.trim() ?? "";
+}
+
+async function alexaCertificates(rawUrl: string): Promise<X509Certificate[]> {
+  const cached = certificateCache.get(rawUrl);
+  if (cached) return cached;
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" || url.hostname !== ALEXA_CERT_HOST || (url.port && url.port !== "443") || !url.pathname.startsWith(ALEXA_CERT_PATH_PREFIX)) {
+    throw new Error("invalid_certificate_url");
+  }
+  const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(3000) });
+  if (!response.ok) throw new Error("certificate_fetch_failed");
+  const pem = await response.text();
+  if (pem.length > 32 * 1024) throw new Error("certificate_chain_too_large");
+  const blocks = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
+  if (blocks.length < 2 || blocks.length > 5) throw new Error("invalid_certificate_chain");
+  const certificates = blocks.map((block) => new X509Certificate(block));
+  const now = Date.now();
+  for (const certificate of certificates) {
+    if (now < Date.parse(certificate.validFrom) || now > Date.parse(certificate.validTo)) throw new Error("certificate_expired");
+  }
+  if (!certificates[0].checkHost(ALEXA_CERT_NAME)) throw new Error("invalid_certificate_name");
+  for (let index = 0; index < certificates.length - 1; index += 1) {
+    if (!certificates[index].verify(certificates[index + 1].publicKey)) throw new Error("invalid_certificate_chain");
+  }
+  const trustAnchor = certificates[certificates.length - 1];
+  if (trustAnchor.fingerprint256 !== AMAZON_ROOT_CA_1_SHA256) throw new Error("untrusted_certificate_root");
+  certificateCache.set(rawUrl, certificates);
+  return certificates;
+}
+
+async function verifyAlexaSignature(body: string, headers: Headers): Promise<void> {
+  const certUrl = headerValue(headers, "SignatureCertChainUrl");
+  const signature = headerValue(headers, "Signature-256");
+  if (!certUrl || !signature) throw new Error("missing_signature_headers");
+  const certificates = await alexaCertificates(certUrl);
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(body, "utf8");
+  verifier.end();
+  if (!verifier.verify(certificates[0].publicKey, signature, "base64")) throw new Error("invalid_request_signature");
+}
 
 function alexaResponse(text: string, shouldEndSession: boolean, reprompt?: string): Response {
   return Response.json({
@@ -141,13 +190,17 @@ export default {
     if (url.pathname !== "/alexa" || request.method !== "POST") return new Response("Not found", { status: 404 });
     const body = await request.text();
     if (body.length > 64 * 1024) return new Response("Request too large", { status: 413 });
-    const headers = Object.fromEntries(request.headers.entries());
     try {
-      await new SkillRequestSignatureVerifier().verify(body, headers);
+      await verifyAlexaSignature(body, request.headers);
       await new TimestampVerifier().verify(body);
       return await handleVerifiedEnvelope(JSON.parse(body) as AlexaEnvelope, env);
     } catch (error) {
-      console.error(JSON.stringify({ event: "alexa_verification", outcome: "rejected", code: error instanceof Error ? error.name : "unknown" }));
+      console.error(JSON.stringify({
+        event: "alexa_verification",
+        outcome: "rejected",
+        code: error instanceof Error ? error.name : "unknown",
+        detail: error instanceof Error ? error.message : "unknown",
+      }));
       return new Response("Invalid Alexa request", { status: 400 });
     }
   },

@@ -27,6 +27,25 @@ export function csrfHeaders() {
   return { "X-CSRF-Token": csrfToken };
 }
 
+export async function getHouseholdMembers() {
+  const res = await axios.get("/api/household/members");
+  return res.data.members;
+}
+
+export async function getPendingVoiceIdentities() {
+  const res = await axios.get("/api/household/voice-identities/pending");
+  return res.data.identities;
+}
+
+export async function linkPendingVoiceIdentity(pendingId, memberId) {
+  const res = await axios.post(
+    `/api/household/voice-identities/pending/${encodeURIComponent(pendingId)}/link`,
+    { member_id: memberId },
+    { headers: csrfHeaders() },
+  );
+  return res.data.identity;
+}
+
 export async function getVeraControl() {
   const res = await axios.get("/api/vera/control");
   return res.data.control;
